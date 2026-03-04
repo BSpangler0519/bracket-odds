@@ -140,37 +140,65 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
 <div id="app">
 
   <!-- ══ SETUP SCREEN ══ -->
-  <div id="setup-screen">
-    <div style="text-align:center;padding:24px 0 18px">
+  <div id="setup-screen" style="padding:0 16px 40px;padding-top:calc(env(safe-area-inset-top) + 16px)">
+    <div style="text-align:center;padding:20px 0 16px">
       <div style="font-size:11px;color:#f59e0b;letter-spacing:3px">NCAA TOURNAMENT</div>
-      <div style="font-size:26px;font-weight:700;color:#fff;margin-top:4px">Bracket Odds <span style="color:#f59e0b">⚡</span></div>
+      <div style="font-size:28px;font-weight:700;color:#fff;margin-top:4px">Bracket Odds <span style="color:#f59e0b">⚡</span></div>
+      <div style="font-size:12px;color:#7a8fa6;margin-top:6px">Live odds · AI analysis · Bet tracking</div>
     </div>
-    <div class="setup-card">
-      <div style="font-size:11px;color:#f59e0b;letter-spacing:2px;margin-bottom:16px">ONE-TIME SETUP</div>
-      <div class="setup-step">
-        <div class="step-num">1</div>
-        <div class="step-text">Go to <strong><a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a></strong> and click <strong>Get API Key</strong>. Sign up free — takes 2 minutes.</div>
+
+    <!-- Step 1: Odds API -->
+    <div class="setup-card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="background:#f59e0b;color:#080c17;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">1</div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#fff">Get your free Odds API key</div>
+          <div style="font-size:11px;color:#7a8fa6;margin-top:2px">Required for live game odds</div>
+        </div>
       </div>
-      <div class="setup-step">
-        <div class="step-num">2</div>
-        <div class="step-text">Copy your API key from your dashboard. It looks like: <code style="color:#60a5fa;font-size:11px">a3f8b2c9d1e4...</code></div>
+      <div style="background:#080c17;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:#94a3b8;line-height:1.8">
+        1. Go to <a href="https://the-odds-api.com" target="_blank" style="color:#38bdf8;font-weight:700">the-odds-api.com</a><br/>
+        2. Tap <strong style="color:#fff">Get API Key</strong> and sign up free<br/>
+        3. Copy your key and paste it below
       </div>
-      <div class="setup-step" style="margin-bottom:0">
-        <div class="step-num">3</div>
-        <div class="step-text">Paste your key below and tap <strong>Save &amp; Launch</strong>.</div>
+      <label style="font-size:9px;color:#8aa0b8;letter-spacing:1px;display:block;margin-bottom:5px">ODDS API KEY</label>
+      <input class="api-input" id="api-key-input" type="text" placeholder="Paste key here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+    </div>
+
+    <!-- Step 2: Claude API (optional) -->
+    <div class="setup-card" style="margin-bottom:12px;border-color:#3b4fd8">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="background:#818cf8;color:#080c17;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">2</div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#fff">Add Claude AI key <span style="font-size:10px;color:#818cf8;font-weight:400">(optional)</span></div>
+          <div style="font-size:11px;color:#7a8fa6;margin-top:2px">Powers the AI betting summary — ~$0.002 per use</div>
+        </div>
       </div>
-      <div style="margin-top:14px">
-        <label style="font-size:9px;color:#8aa0b8;letter-spacing:1px;display:block;margin-bottom:5px">THE ODDS API KEY (required for live odds)</label>
-        <input class="api-input" id="api-key-input" type="text" placeholder="Paste Odds API key here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="margin-bottom:10px"/>
-        <label style="font-size:9px;color:#818cf8;letter-spacing:1px;display:block;margin-bottom:5px">CLAUDE API KEY (optional — for AI summaries)</label>
-        <input class="api-input" id="claude-key-input" type="text" placeholder="Paste Claude API key here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="border-color:#818cf8;margin-bottom:10px"/>
-        <div style="font-size:10px;color:#4a5568;margin-bottom:12px;line-height:1.6">Get a Claude key at <a href="https://console.anthropic.com" target="_blank" style="color:#818cf8">console.anthropic.com</a> → API Keys. Free trial credits included.</div>
-        <button class="save-btn" onclick="saveApiKey()">Save &amp; Launch App →</button>
-        <button class="skip-btn" onclick="skipSetup()">Skip for now (use manual import only)</button>
+      <div style="background:#080c17;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:#94a3b8;line-height:1.8">
+        1. Go to <a href="https://console.anthropic.com" target="_blank" style="color:#818cf8;font-weight:700">console.anthropic.com</a><br/>
+        2. Sign in → <strong style="color:#fff">API Keys</strong> → Create key<br/>
+        3. Add $5 credit under Billing (lasts the whole tournament)<br/>
+        4. Copy key (starts with <code style="color:#818cf8">sk-ant-</code>) and paste below
+      </div>
+      <label style="font-size:9px;color:#818cf8;letter-spacing:1px;display:block;margin-bottom:5px">CLAUDE API KEY</label>
+      <input class="api-input" id="claude-key-input" type="text" placeholder="sk-ant-... (optional)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="border-color:#3b4fd8"/>
+    </div>
+
+    <button class="save-btn" onclick="saveApiKey()" style="margin-bottom:10px">Launch App →</button>
+    <button class="skip-btn" onclick="skipSetup()">Skip setup — enter keys later</button>
+
+    <div style="margin-top:16px;background:#111825;border-radius:12px;padding:14px">
+      <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:8px">SHARING THIS APP</div>
+      <div style="font-size:12px;color:#7a8fa6;line-height:1.8">
+        Share this URL with friends &amp; family:<br/>
+        <span style="color:#38bdf8;font-weight:700;font-size:11px">bspangler0519.github.io/bracket-odds</span><br/>
+        Each person enters their own free Odds API key.<br/>
+        Keys are stored only on their device — private &amp; secure.
       </div>
     </div>
-    <div style="font-size:11px;color:#7a8fa6;text-align:center;line-height:1.8;padding:0 10px">
-      Both keys are stored only on this device.<br/>Never shared with anyone.
+
+    <div style="font-size:11px;color:#445566;text-align:center;line-height:1.8;padding:14px 10px 0">
+      Your keys are stored only on this device.<br/>Never sent to anyone except the respective APIs.
     </div>
   </div>
 
