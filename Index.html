@@ -15,19 +15,16 @@ input:focus,textarea:focus{outline:none}
 button{cursor:pointer}
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-thumb{background:#1e2e40;border-radius:4px}
-#header{background:linear-gradient(160deg,#0c1428,#182038);border-bottom:2px solid #f59e0b;padding:14px 16px 0;position:sticky;top:0;z-index:100}
-#header-top{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:10px}
+#header{background:linear-gradient(160deg,#0c1428,#182038);border-bottom:2px solid #f59e0b;padding:0 16px 0;padding-top:calc(env(safe-area-inset-top) + 10px);position:sticky;top:0;z-index:100}
+#header-top{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px}
 .brand-sub{font-size:11px;color:#f59e0b;letter-spacing:3px;text-transform:uppercase;font-weight:700}
 .brand-title{font-size:20px;font-weight:700;color:#fff;letter-spacing:-0.5px;margin-top:2px}
 .brand-title span{color:#f59e0b}
-#refresh-btn{background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:1px}
+#last-updated{font-size:9px;color:#7a8fa6;margin-top:1px;text-align:right}
+#tabs{display:flex;gap:4px;padding:8px 0 0;align-items:flex-end}
+#refresh-btn{background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:8px 8px 0 0;color:#f59e0b;padding:8px 8px 10px;font-size:10px;font-weight:700;letter-spacing:1px;white-space:nowrap;flex-shrink:0}
 #refresh-btn:disabled{opacity:0.5}
-#last-updated{font-size:9px;color:#7a8fa6;margin-top:3px;text-align:right}
-#tabs{display:flex;gap:5px;padding:10px 0 0}
-.tab{flex:1;padding:8px 2px;border-radius:8px 8px 0 0;border:none;font-size:9px;font-weight:700;letter-spacing:0.5px;background:#1a2535;color:#667788;transition:all 0.15s;position:relative}
-.tab.active{background:#f59e0b;color:#080c17}
-.badge{position:absolute;top:-4px;right:-2px;background:#f97316;border-radius:10px;font-size:7px;padding:1px 4px;color:#fff}
-#content{padding:14px 14px 90px}
+#content{padding:14px 14px 90px;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
 .card{background:#111825;border:1px solid #1a2a3a;border-radius:14px;margin-bottom:12px;overflow:hidden}
 .card-header{background:#0d1520;padding:7px 13px;display:flex;justify-content:space-between;border-bottom:1px solid #1a2535}
 .card-header .book{font-size:9px;color:#f59e0b;font-weight:700;letter-spacing:1px}
@@ -178,10 +175,7 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
         <div class="brand-sub">NCAA Tournament</div>
         <div class="brand-title">Bracket Odds <span>⚡</span></div>
       </div>
-      <div>
-        <button id="refresh-btn" onclick="refreshAll()">↻ REFRESH</button>
-        <div id="last-updated"></div>
-      </div>
+      <div id="last-updated" style="text-align:right;padding-top:4px"></div>
     </div>
     <div id="tabs">
       <button class="tab active" data-tab="odds" onclick="switchTab('odds')">ODDS</button>
@@ -191,6 +185,7 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
       <button class="tab" data-tab="calc" onclick="switchTab('calc')">CALC</button>
       <button class="tab" data-tab="history" onclick="switchTab('history')">LOG</button>
       <button class="tab" data-tab="stats" onclick="switchTab('stats')">STATS</button>
+      <button id="refresh-btn" onclick="refreshAll()">↻</button>
     </div>
   </div>
 
@@ -629,7 +624,7 @@ function renderFilteredGames(){
 async function fetchOdds(){
   if(!API_KEY){renderOddsError('add_key');return;}
   var btn=document.getElementById('refresh-btn');
-  btn.disabled=true;btn.textContent='⟳ LOADING';
+  btn.disabled=true;btn.textContent='⟳';
   document.getElementById('odds-loading').style.display='block';
   document.getElementById('odds-list').innerHTML='';
   document.getElementById('odds-error').style.display='none';
@@ -662,7 +657,7 @@ async function fetchOdds(){
     document.getElementById('odds-loading').style.display='none';
     renderOddsError(e.message);
   }
-  btn.disabled=false;btn.textContent='↻ REFRESH';
+  btn.disabled=false;btn.textContent='↻';
 }
 
 function renderOddsError(msg){
@@ -1138,11 +1133,11 @@ function resetTeamStats(name){
 // ══ REFRESH ALL ══
 async function refreshAll(){
   var btn=document.getElementById('refresh-btn');
-  btn.disabled=true; btn.textContent='⟳ LOADING';
+  btn.disabled=true; btn.textContent='⟳';
   await fetchOdds();
   await checkPendingBets();
   await generatePicks();
-  btn.disabled=false; btn.textContent='↻ REFRESH';
+  btn.disabled=false; btn.textContent='↻';
 }
 
 // ══ PENDING BETS ══
@@ -1288,7 +1283,64 @@ function showToast(msg){
   setTimeout(function(){t.remove();},4000);
 }
 
-// ══ TODAY'S BEST PICKS ENGINE ══
+// ══ FUZZY TEAM STAT LOOKUP ══
+// Matches "Kansas Jayhawks" → "Kansas", "North Carolina Tar Heels" → "North Carolina" etc.
+function findTeamStats(fullName){
+  // 1. Exact match first
+  var exact = getTeamStats(fullName);
+  if(exact) return exact;
+
+  var names = getAllTeamNames();
+  var lc = fullName.toLowerCase();
+
+  // 2. Check if any DB name is contained in the full name, or vice versa
+  var match = names.find(function(n){
+    return lc.indexOf(n.toLowerCase()) > -1 || n.toLowerCase().indexOf(lc) > -1;
+  });
+  if(match) return getTeamStats(match);
+
+  // 3. Try matching last word (e.g. "Jayhawks" won't match, but "Kansas" from "Kansas Jayhawks" might)
+  var words = fullName.split(' ');
+  for(var i=0; i<words.length; i++){
+    var word = words[i].toLowerCase();
+    if(word.length < 4) continue; // skip short words like "of", "the"
+    var wordMatch = names.find(function(n){ return n.toLowerCase().indexOf(word) > -1 || word.indexOf(n.toLowerCase().split(' ')[0]) > -1; });
+    if(wordMatch) return getTeamStats(wordMatch);
+  }
+
+  // 4. No stats found — generate estimated stats from team's implied win probability via odds
+  // This lets picks work for ALL games even without stats data
+  return null; // caller handles null with odds-only analysis
+}
+
+// Generate a pick using only odds (no stats DB required)
+function oddsOnlyPick(g){
+  // Use implied probability gap as a signal — heavy favorites are worth noting
+  var homeImpl = 1/aToDec(g.homeML)*100;
+  var awayImpl = 1/aToDec(g.awayML)*100;
+  var overround = homeImpl + awayImpl; // should be ~105-110%
+  var trueHome = (homeImpl / overround) * 100;
+  var trueAway = (awayImpl / overround) * 100;
+
+  // Only generate pick if there's a clear favorite (60%+ true probability)
+  var favProb = Math.max(trueHome, trueAway);
+  var favTeam = trueHome > trueAway ? g.home : g.away;
+  var favOdds = trueHome > trueAway ? g.homeML : g.awayML;
+
+  if(favProb < 62) return null; // too close to call without stats
+
+  var stars = edgeToStars(favProb, 62, 70, 80);
+  return {
+    type:'ml', typeLabel:'MONEYLINE', game:g,
+    pick:favTeam+' ML', odds:favOdds,
+    stars:stars,
+    edge:(favProb - (favOdds<0?Math.abs(favOdds)/(Math.abs(favOdds)+100)*100:100/(favOdds+100)*100)).toFixed(1),
+    reason:'Market prices '+favTeam+' at '+favProb.toFixed(0)+'% true win probability — strong favorite',
+    sortScore: favProb * stars * 0.5 // lower weight than stats-backed picks
+  };
+}
+
+
 var allPicks = [];
 var currentPickFilter = 'all';
 var suggestedParlay = [];
@@ -1300,27 +1352,35 @@ async function generatePicks(){
   document.getElementById('picks-empty').style.display='none';
   document.getElementById('picks-parlay-box').style.display='none';
 
-  // Use cached games from last odds fetch, or fetch fresh
-  if(!window.lastGamesData || !window.lastGamesData.length){
+  // Use already-transformed allGamesData, or fetch fresh if empty
+  if(!allGamesData.length){
     if(!API_KEY){ renderPicksNoData(); return; }
     try{
-      var url='https://api.the-odds-api.com/v4/sports/basketball_ncaab/odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey='+API_KEY;
-      var res=await fetch(url);
-      if(!res.ok) throw new Error('API error');
-      window.lastGamesData = await res.json();
+      var params='odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey='+API_KEY;
+      var base='https://api.the-odds-api.com/v4/sports/';
+      var results=await Promise.allSettled([
+        fetch(base+'basketball_ncaab/'+params).then(function(r){return r.ok?r.json():[];}),
+        fetch(base+'basketball_ncaab_championship/'+params).then(function(r){return r.ok?r.json():[];})
+      ]);
+      var d1=(results[0].status==='fulfilled'&&Array.isArray(results[0].value))?results[0].value:[];
+      var d2=(results[1].status==='fulfilled'&&Array.isArray(results[1].value))?results[1].value:[];
+      d1.forEach(function(g){g._league='ncaab';}); d2.forEach(function(g){g._league='tournament';});
+      var combined=d1.concat(d2);
+      window.lastGamesData=combined;
+      allGamesData=combined.map(transformGame).filter(Boolean);
     } catch(e){ renderPicksNoData(); return; }
   }
 
-  var games = window.lastGamesData.map(transformGame).filter(Boolean);
+  var games = allGamesData;
   document.getElementById('picks-loading').style.display='none';
-
   if(!games.length){ renderPicksNoData(); return; }
 
   allPicks = [];
 
   games.forEach(function(g){
-    var s1 = getTeamStats(g.home);
-    var s2 = getTeamStats(g.away);
+    // Fuzzy match team names to stats DB — "Kansas Jayhawks" matches "Kansas"
+    var s1 = findTeamStats(g.home);
+    var s2 = findTeamStats(g.away);
 
     // ── 1. MONEYLINE VALUE PICK ──
     if(s1 && s2){
@@ -1425,6 +1485,10 @@ async function generatePicks(){
           sortScore: netGap * mismatchStars
         });
       }
+    } else {
+      // No stats available — use odds-only analysis as fallback
+      var oddsPick = oddsOnlyPick(g);
+      if(oddsPick) allPicks.push(oddsPick);
     }
   });
 
