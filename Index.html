@@ -1,0 +1,13 @@
+# 1. Install Node.js from nodejs.org, then:
+npx create-expo-app BracketOdds --template blank
+cd BracketOdds
+
+# 2. Replace App.js with the component above
+
+# 3. Test in your browser instantly
+npx expo start --web
+
+# 4. When ready for iPhone:
+npm install -g eas-cli
+eas login          # create free account at expo.dev
+npx testflight     # walks you through everything interactively
