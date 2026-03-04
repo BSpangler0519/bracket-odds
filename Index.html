@@ -1,449 +1,556 @@
-import { useState, useEffect, useCallback } from "react";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Bracket Odds"/>
+<title>Bracket Odds ⚡</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+body{background:#080c17;color:#e0e6f0;font-family:'Courier New',monospace;max-width:480px;margin:0 auto;min-height:100vh}
+input,textarea,button{font-family:inherit}
+input:focus,textarea:focus{outline:none}
+button{cursor:pointer}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:#1e2e40;border-radius:4px}
+#header{background:linear-gradient(160deg,#0c1428,#182038);border-bottom:2px solid #f59e0b;padding:14px 16px 0;position:sticky;top:0;z-index:100}
+#header-top{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:10px}
+.brand-sub{font-size:10px;color:#f59e0b;letter-spacing:3px;text-transform:uppercase}
+.brand-title{font-size:20px;font-weight:700;color:#fff;letter-spacing:-0.5px;margin-top:2px}
+.brand-title span{color:#f59e0b}
+#refresh-btn{background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;padding:6px 12px;font-size:10px;font-weight:700;letter-spacing:1px}
+#refresh-btn:disabled{opacity:0.5}
+#last-updated{font-size:9px;color:#445566;margin-top:3px;text-align:right}
+#tabs{display:flex;gap:5px;padding:10px 0 0}
+.tab{flex:1;padding:8px 2px;border-radius:8px 8px 0 0;border:none;font-size:9px;font-weight:700;letter-spacing:0.5px;background:#1a2535;color:#667788;transition:all 0.15s;position:relative}
+.tab.active{background:#f59e0b;color:#080c17}
+.badge{position:absolute;top:-4px;right:-2px;background:#ef4444;border-radius:10px;font-size:7px;padding:1px 4px;color:#fff}
+#content{padding:14px 14px 90px}
+.card{background:#111825;border:1px solid #1a2a3a;border-radius:14px;margin-bottom:12px;overflow:hidden}
+.card-header{background:#0d1520;padding:7px 13px;display:flex;justify-content:space-between;border-bottom:1px solid #1a2535}
+.card-header .book{font-size:9px;color:#f59e0b;font-weight:700;letter-spacing:1px}
+.card-header .time{font-size:10px;color:#556677}
+.card-body{padding:12px 13px}
+.team-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
+.team-row+.team-row{border-top:1px solid #151f2e}
+.team-name{font-size:14px;font-weight:400;color:#99aabb}
+.team-name.fav{font-weight:700;color:#fff}
+.fav-star{font-size:8px;color:#f59e0b;margin-left:5px}
+.implied{font-size:9px;color:#445566;margin-top:1px}
+.odds-btn{padding:6px 13px;border-radius:8px;font-size:14px;font-weight:700;min-width:64px;transition:all 0.1s;border:1px solid transparent}
+.odds-btn.dog{border-color:#34d39933;background:rgba(52,211,153,0.07);color:#34d399}
+.odds-btn.fav-btn{border-color:#fb923c33;background:rgba(251,146,60,0.07);color:#fb923c}
+.odds-btn.active{border-color:#f59e0b!important;background:rgba(245,158,11,0.2)!important;color:#f59e0b!important}
+.sub-bets{display:flex;gap:7px;margin-top:10px}
+.sub-btn{flex:1;padding:8px 6px;border-radius:8px;border:1px solid #1a2a3a;background:#0d1520;color:#99aabb;text-align:center;transition:all 0.1s}
+.sub-btn.active{border-color:#f59e0b;background:rgba(245,158,11,0.12);color:#f59e0b}
+.sub-label{font-size:9px;color:#445566;margin-bottom:2px;letter-spacing:1px}
+.sub-btn.active .sub-label{color:#f59e0b}
+.sub-val{font-size:12px;font-weight:600}
+.sub-odds{font-size:10px;color:#556677}
+.slip-leg{background:#111825;border:1px solid #1e2e40;border-radius:10px;padding:11px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center}
+.leg-label{font-size:13px;font-weight:600}
+.leg-implied{font-size:10px;color:#667788;margin-top:2px}
+.leg-odds{font-size:15px;font-weight:700}
+.leg-odds.dog{color:#34d399}
+.leg-odds.fav-c{color:#fb923c}
+.remove-btn{background:rgba(239,68,68,0.15);border:none;border-radius:6px;color:#ef4444;padding:4px 8px;font-size:11px}
+.summary-box{background:linear-gradient(135deg,#0f1f0f,#162014);border:1px solid #34d399;border-radius:12px;padding:16px;margin-top:14px}
+.summary-title{font-size:10px;color:#34d399;letter-spacing:2px;margin-bottom:12px}
+.summary-row{display:flex;justify-content:space-between;margin-bottom:6px}
+.summary-lbl{font-size:12px;color:#667788}
+.summary-val{font-size:13px;font-weight:700;color:#fff}
+.summary-val.large{font-size:16px;color:#34d399}
+.summary-val.green{color:#34d399}
+.divider{height:1px;background:#1f3025;margin:10px 0}
+.wager-label{font-size:9px;color:#667788;display:block;margin-bottom:5px;letter-spacing:1px}
+.wager-input{width:100%;background:#0a100a;border:1px solid #34d399;border-radius:8px;color:#fff;padding:9px 11px;font-size:16px}
+.calc-card{background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:16px;margin-bottom:12px}
+.calc-title{font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:12px}
+.calc-row{display:flex;gap:10px;margin-bottom:12px}
+.calc-field{flex:1}
+.field-label{font-size:9px;color:#556677;display:block;margin-bottom:5px;letter-spacing:1px}
+.field-input{width:100%;background:#080c17;border:1px solid #1e2e40;border-radius:8px;color:#fff;padding:9px 10px;font-size:16px}
+.results-row{display:flex;gap:7px}
+.result-box{flex:1;background:#080c17;border-radius:8px;padding:9px 6px;text-align:center}
+.result-label{font-size:8px;color:#445566;letter-spacing:1px;margin-bottom:3px}
+.result-val{font-size:13px;font-weight:700}
+.result-val.white{color:#e0e6f0}
+.result-val.green{color:#34d399}
+.result-val.blue{color:#60a5fa}
+.parlay-leg-row{display:flex;gap:7px;align-items:center;margin-bottom:7px}
+.leg-num{font-size:10px;color:#445566;width:18px}
+.leg-input{flex:1;background:#080c17;border:1px solid #1e2e40;border-radius:8px;padding:8px 10px;font-size:14px}
+.leg-pct{font-size:10px;color:#556677;width:34px;text-align:center}
+.remove-leg{background:rgba(239,68,68,0.12);border:none;border-radius:6px;color:#ef4444;padding:5px 7px;font-size:10px}
+.add-leg-btn{width:100%;padding:7px;background:transparent;border:1px dashed #1e2e40;border-radius:8px;color:#556677;font-size:11px;margin-bottom:10px}
+.parlay-summary{background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:11px}
+.import-hint{font-size:12px;color:#667788;margin-bottom:10px;line-height:1.7}
+.import-hint span{color:#f59e0b}
+textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40;border-radius:10px;color:#e0e6f0;padding:12px;font-size:13px;resize:vertical}
+.parse-btn{width:100%;padding:12px;background:#f59e0b;border:none;border-radius:10px;color:#080c17;font-size:14px;font-weight:700;margin-top:10px}
+.parsed-title{font-size:10px;color:#f59e0b;letter-spacing:2px;margin:14px 0 10px}
+.parsed-card{background:#111825;border:1px solid #1e2e40;border-radius:10px;padding:11px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center}
+.stats-row{display:flex;gap:7px;margin-bottom:14px}
+.stat-box{flex:1;background:#111825;border:1px solid #1a2a3a;border-radius:10px;padding:9px 7px;text-align:center}
+.stat-label{font-size:8px;color:#445566;letter-spacing:1px;margin-bottom:3px}
+.stat-val{font-size:14px;font-weight:700}
+.hist-row{border-radius:10px;padding:11px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center}
+.hist-desc{font-size:13px;font-weight:600}
+.hist-meta{font-size:10px;color:#667788;margin-top:2px}
+.alert-yellow{background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:12px;padding:16px;margin-bottom:14px;font-size:12px;line-height:1.8}
+.alert-yellow strong{color:#f59e0b;display:block;margin-bottom:4px;font-size:13px}
+.alert-red{background:rgba(239,68,68,0.1);border:1px solid #ef4444;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:#ef4444}
+.empty{text-align:center;color:#334455;padding:50px 20px;font-size:13px;line-height:2}
+#setup-screen{padding:20px}
+.setup-card{background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:20px;margin-bottom:14px}
+.setup-step{display:flex;gap:12px;margin-bottom:16px;align-items:flex-start}
+.step-num{background:#f59e0b;color:#080c17;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px}
+.step-text{font-size:13px;line-height:1.7;color:#aabbc8}
+.step-text strong{color:#fff}
+.step-text a{color:#60a5fa}
+.api-input{width:100%;background:#080c17;border:2px solid #f59e0b;border-radius:10px;color:#fff;padding:12px;font-size:14px;margin-bottom:10px}
+.save-btn{width:100%;padding:13px;background:#f59e0b;border:none;border-radius:10px;color:#080c17;font-size:15px;font-weight:700}
+.skip-btn{width:100%;padding:10px;background:transparent;border:1px solid #2a3a4a;border-radius:10px;color:#667788;font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="app">
 
-// ─── Replace with your key from the-odds-api.com (free tier) ───
-const ODDS_API_KEY = "YOUR_API_KEY_HERE";
-const ODDS_URL = `https://api.the-odds-api.com/v4/sports/basketball_ncaab/odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${ODDS_API_KEY}`;
+  <!-- ══ SETUP SCREEN ══ -->
+  <div id="setup-screen">
+    <div style="text-align:center;padding:24px 0 18px">
+      <div style="font-size:11px;color:#f59e0b;letter-spacing:3px">NCAA TOURNAMENT</div>
+      <div style="font-size:26px;font-weight:700;color:#fff;margin-top:4px">Bracket Odds <span style="color:#f59e0b">⚡</span></div>
+    </div>
+    <div class="setup-card">
+      <div style="font-size:11px;color:#f59e0b;letter-spacing:2px;margin-bottom:16px">ONE-TIME SETUP</div>
+      <div class="setup-step">
+        <div class="step-num">1</div>
+        <div class="step-text">Go to <strong><a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a></strong> and click <strong>Get API Key</strong>. Sign up free — takes 2 minutes.</div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">2</div>
+        <div class="step-text">Copy your API key from your dashboard. It looks like: <code style="color:#60a5fa;font-size:11px">a3f8b2c9d1e4...</code></div>
+      </div>
+      <div class="setup-step" style="margin-bottom:0">
+        <div class="step-num">3</div>
+        <div class="step-text">Paste your key below and tap <strong>Save &amp; Launch</strong>.</div>
+      </div>
+      <div style="margin-top:14px">
+        <input class="api-input" id="api-key-input" type="text" placeholder="Paste your API key here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+        <button class="save-btn" onclick="saveApiKey()">Save &amp; Launch App →</button>
+        <button class="skip-btn" onclick="skipSetup()">Skip for now (use manual import only)</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#445566;text-align:center;line-height:1.8;padding:0 10px">
+      Your API key is stored only on this device.<br/>Never sent anywhere except the-odds-api.com.
+    </div>
+  </div>
 
-// ─── Helpers ────────────────────────────────────────────────────
-function americanToDecimal(odds) {
-  return odds > 0 ? odds / 100 + 1 : 100 / Math.abs(odds) + 1;
+  <!-- ══ HEADER ══ -->
+  <div id="header" style="display:none">
+    <div id="header-top">
+      <div>
+        <div class="brand-sub">NCAA Tournament</div>
+        <div class="brand-title">Bracket Odds <span>⚡</span></div>
+      </div>
+      <div>
+        <button id="refresh-btn" onclick="fetchOdds()">↻ REFRESH</button>
+        <div id="last-updated"></div>
+      </div>
+    </div>
+    <div id="tabs">
+      <button class="tab active" data-tab="odds" onclick="switchTab('odds')">ODDS</button>
+      <button class="tab" data-tab="slip" onclick="switchTab('slip')">SLIP<span class="badge" id="slip-badge" style="display:none">0</span></button>
+      <button class="tab" data-tab="calc" onclick="switchTab('calc')">CALC</button>
+      <button class="tab" data-tab="import" onclick="switchTab('import')">IMPORT</button>
+      <button class="tab" data-tab="history" onclick="switchTab('history')">LOG</button>
+    </div>
+  </div>
+
+  <!-- ══ MAIN CONTENT ══ -->
+  <div id="content" style="display:none">
+
+    <!-- ODDS -->
+    <div id="tab-odds" class="tab-content">
+      <div id="odds-error" style="display:none"></div>
+      <div id="odds-loading" class="empty" style="display:none">Fetching live odds…</div>
+      <div id="odds-list"></div>
+    </div>
+
+    <!-- SLIP -->
+    <div id="tab-slip" class="tab-content" style="display:none">
+      <div id="slip-empty" class="empty">Tap any odds button on the<br/>Odds tab to build your parlay.</div>
+      <div id="slip-legs"></div>
+      <div id="slip-summary" style="display:none">
+        <div class="summary-box">
+          <div class="summary-title">PARLAY SUMMARY</div>
+          <div class="summary-row"><span class="summary-lbl">Legs</span><span class="summary-val" id="s-legs">—</span></div>
+          <div class="summary-row"><span class="summary-lbl">Combined odds</span><span class="summary-val" id="s-combined">—</span></div>
+          <div class="summary-row"><span class="summary-lbl">Implied probability</span><span class="summary-val" id="s-prob">—</span></div>
+          <div class="divider"></div>
+          <label class="wager-label">WAGER ($)</label>
+          <input class="wager-input" id="slip-wager" type="number" value="100" oninput="updateSlipSummary()"/>
+          <div style="margin-top:12px">
+            <div class="summary-row"><span class="summary-lbl">Total payout</span><span class="summary-val large" id="s-payout">—</span></div>
+            <div class="summary-row"><span class="summary-lbl">Profit</span><span class="summary-val green" id="s-profit">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALC -->
+    <div id="tab-calc" class="tab-content" style="display:none">
+      <div class="calc-card">
+        <div class="calc-title">SINGLE BET CALCULATOR</div>
+        <div class="calc-row">
+          <div class="calc-field">
+            <label class="field-label">ODDS (American)</label>
+            <input class="field-input" id="single-odds" type="number" value="-110" oninput="updateSingle()"/>
+          </div>
+          <div class="calc-field">
+            <label class="field-label">WAGER ($)</label>
+            <input class="field-input" id="single-wager" type="number" value="100" oninput="updateSingle()"/>
+          </div>
+        </div>
+        <div class="results-row">
+          <div class="result-box"><div class="result-label">PAYOUT</div><div class="result-val white" id="single-payout">—</div></div>
+          <div class="result-box"><div class="result-label">PROFIT</div><div class="result-val green" id="single-profit">—</div></div>
+          <div class="result-box"><div class="result-label">IMPLIED</div><div class="result-val blue" id="single-implied">—</div></div>
+        </div>
+      </div>
+      <div class="calc-card">
+        <div class="calc-title">PARLAY BUILDER</div>
+        <div id="parlay-legs"></div>
+        <button class="add-leg-btn" onclick="addParlayLeg()">+ Add Leg</button>
+        <label class="field-label">WAGER ($)</label>
+        <input class="field-input" id="parlay-wager" type="number" value="50" oninput="updateParlay()" style="width:100%;margin-bottom:12px"/>
+        <div class="parlay-summary">
+          <div class="summary-row"><span class="summary-lbl" id="parlay-leg-count">2-Leg Parlay</span><span class="summary-val" id="parlay-combined" style="color:#f59e0b">—</span></div>
+          <div class="summary-row"><span class="summary-lbl">Implied prob</span><span class="summary-val" id="parlay-prob">—</span></div>
+          <div class="divider" style="background:#1e2a14"></div>
+          <div class="summary-row"><span class="summary-lbl">Total payout</span><span class="summary-val large" id="parlay-payout">—</span></div>
+          <div class="summary-row"><span class="summary-lbl">Profit</span><span class="summary-val green" id="parlay-profit">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT -->
+    <div id="tab-import" class="tab-content" style="display:none">
+      <div style="margin-bottom:12px">
+        <button onclick="showSetup()" style="background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;padding:7px 14px;font-size:11px;font-weight:700;letter-spacing:1px">⚙ CHANGE API KEY</button>
+      </div>
+      <p class="import-hint">Paste odds from ESPN, Vegas Insider, or Action Network.<br/><span>Format: Team1 -150 Team2 +130</span></p>
+      <textarea id="paste-area" placeholder="Example:&#10;Duke -145 UNC +125&#10;Kansas +110 Houston -130&#10;Purdue -160 Tennessee +140"></textarea>
+      <button class="parse-btn" onclick="parseOdds()">PARSE ODDS</button>
+      <div id="parsed-results"></div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="tab-history" class="tab-content" style="display:none">
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-label">WIN RATE</div><div class="stat-val" id="h-winrate" style="color:#60a5fa">—</div></div>
+        <div class="stat-box"><div class="stat-label">WAGERED</div><div class="stat-val" id="h-wagered" style="color:#e0e6f0">—</div></div>
+        <div class="stat-box"><div class="stat-label">ROI</div><div class="stat-val" id="h-roi">—</div></div>
+      </div>
+      <div id="history-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ══ STATE ══
+var API_KEY = localStorage.getItem('oddsApiKey') || '';
+var betSlip = [];
+var parlayLegs = [{id:1,odds:-110},{id:2,odds:150}];
+var parlayLegId = 3;
+var historyData = JSON.parse(localStorage.getItem('betHistory') || 'null') || [
+  {id:1,desc:'Duke ML -145',wager:50,result:'Win',payout:84.48,date:'Mar 28'},
+  {id:2,desc:'2-Team Parlay',wager:25,result:'Loss',payout:0,date:'Mar 27'},
+  {id:3,desc:'Kansas +2.5 -110',wager:100,result:'Win',payout:190.91,date:'Mar 25'}
+];
+
+// ══ MATH ══
+function aToDec(o){ return o>0 ? o/100+1 : 100/Math.abs(o)+1; }
+function implied(o){ return ((1/aToDec(o))*100).toFixed(1); }
+function fmt(o){ return o>0?'+'+o:''+o; }
+function calcParlay(legs){
+  if(!legs.length) return {dec:1,prob:'0.0',american:0};
+  var dec=legs.reduce(function(a,l){return a*aToDec(l.odds);},1);
+  var am=dec>=2?Math.round((dec-1)*100):Math.round(-100/(dec-1));
+  return {dec:dec,prob:((1/dec)*100).toFixed(1),american:am};
 }
-function impliedProb(odds) {
-  return ((1 / americanToDecimal(odds)) * 100).toFixed(1);
+
+// ══ SETUP ══
+function saveApiKey(){
+  var k=document.getElementById('api-key-input').value.trim();
+  if(!k){alert('Please paste your API key first.');return;}
+  API_KEY=k;
+  localStorage.setItem('oddsApiKey',k);
+  launchApp();
 }
-function fmt(odds) {
-  return odds > 0 ? `+${odds}` : `${odds}`;
+function skipSetup(){ launchApp(); }
+function showSetup(){
+  document.getElementById('setup-screen').style.display='block';
+  document.getElementById('header').style.display='none';
+  document.getElementById('content').style.display='none';
+  if(API_KEY) document.getElementById('api-key-input').value=API_KEY;
 }
-function calcParlay(legs) {
-  if (!legs.length) return { dec: 1, prob: "0.0", american: 0 };
-  const dec = legs.reduce((a, l) => a * americanToDecimal(l.odds), 1);
-  const american = dec >= 2 ? Math.round((dec - 1) * 100) : Math.round(-100 / (dec - 1));
-  return { dec, prob: ((1 / dec) * 100).toFixed(1), american };
+function launchApp(){
+  document.getElementById('setup-screen').style.display='none';
+  document.getElementById('header').style.display='block';
+  document.getElementById('content').style.display='block';
+  initApp();
 }
 
-// ─── Transform Odds API response into our game format ───────────
-function transformGame(g) {
-  const bk = g.bookmakers?.[0];
-  if (!bk) return null;
-  const h2h = bk.markets?.find(m => m.key === "h2h")?.outcomes || [];
-  const spreads = bk.markets?.find(m => m.key === "spreads")?.outcomes || [];
-  const totals = bk.markets?.find(m => m.key === "totals")?.outcomes || [];
+// ══ BOOT ══
+window.onload=function(){
+  if(API_KEY){ launchApp(); }
+};
 
-  const home = g.home_team;
-  const away = g.away_team;
-  const homeML = h2h.find(o => o.name === home)?.price;
-  const awayML = h2h.find(o => o.name === away)?.price;
-  const homeSpread = spreads.find(o => o.name === home);
-  const total = totals.find(o => o.name === "Over");
+function initApp(){
+  renderParlayLegs();
+  updateSingle();
+  updateParlay();
+  renderHistory();
+  if(API_KEY) fetchOdds();
+  else renderOddsError('add_key');
+  switchTab('odds');
+}
 
-  if (!homeML || !awayML) return null;
+// ══ TABS ══
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===name);});
+  document.querySelectorAll('.tab-content').forEach(function(t){t.style.display='none';});
+  var el=document.getElementById('tab-'+name);
+  if(el) el.style.display='block';
+}
 
-  const time = new Date(g.commence_time);
+// ══ ODDS API ══
+async function fetchOdds(){
+  if(!API_KEY){renderOddsError('add_key');return;}
+  var btn=document.getElementById('refresh-btn');
+  btn.disabled=true;btn.textContent='⟳ LOADING';
+  document.getElementById('odds-loading').style.display='block';
+  document.getElementById('odds-list').innerHTML='';
+  document.getElementById('odds-error').style.display='none';
+  try{
+    var url='https://api.the-odds-api.com/v4/sports/basketball_ncaab/odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey='+API_KEY;
+    var res=await fetch(url);
+    if(!res.ok){var e=await res.json().catch(function(){return{};});throw new Error(e.message||'HTTP '+res.status);}
+    var data=await res.json();
+    document.getElementById('odds-loading').style.display='none';
+    if(!data.length){
+      document.getElementById('odds-list').innerHTML='<div class="empty">No NCAA games currently available.<br/><span style="font-size:11px">Check back closer to tournament time,<br/>or use IMPORT to paste odds manually.</span></div>';
+    } else { renderGames(data); }
+    var now=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    document.getElementById('last-updated').textContent='Updated '+now;
+  }catch(e){
+    document.getElementById('odds-loading').style.display='none';
+    renderOddsError(e.message);
+  }
+  btn.disabled=false;btn.textContent='↻ REFRESH';
+}
+
+function renderOddsError(msg){
+  var el=document.getElementById('odds-error');
+  el.style.display='block';
+  if(msg==='add_key'){
+    el.innerHTML='<div class="alert-yellow"><strong>⚙ No API Key Set</strong>Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:#60a5fa">the-odds-api.com</a> (takes 2 min).<br/>Then tap <strong>IMPORT → Change API Key</strong> to enter it.<br/><br/><span style="color:#8899aa;font-size:11px">Until then, paste odds manually in the IMPORT tab.</span></div>';
+  } else {
+    el.innerHTML='<div class="alert-red">Error: '+msg+' — <span onclick="fetchOdds()" style="text-decoration:underline;cursor:pointer">retry</span></div>';
+  }
+}
+
+function transformGame(g){
+  var bk=g.bookmakers&&g.bookmakers[0];
+  if(!bk) return null;
+  var h2h=(bk.markets||[]).find(function(m){return m.key==='h2h'});
+  var spr=(bk.markets||[]).find(function(m){return m.key==='spreads'});
+  var tot=(bk.markets||[]).find(function(m){return m.key==='totals'});
+  var h2hO=h2h?h2h.outcomes:[];
+  var sprO=spr?spr.outcomes:[];
+  var totO=tot?tot.outcomes:[];
+  var home=g.home_team,away=g.away_team;
+  var homeML=h2hO.find(function(o){return o.name===home;});
+  var awayML=h2hO.find(function(o){return o.name===away;});
+  var homeSpread=sprO.find(function(o){return o.name===home;});
+  var overTotal=totO.find(function(o){return o.name==='Over';});
+  if(!homeML||!awayML) return null;
+  var t=new Date(g.commence_time);
   return {
-    id: g.id,
-    home: home.replace(/ Blue Devils| Jayhawks| Boilermakers| Mountaineers| Tigers| Wildcats| Bulldogs| Volunteers/g, ""),
-    away: away.replace(/ Blue Devils| Jayhawks| Boilermakers| Mountaineers| Tigers| Wildcats| Bulldogs| Volunteers/g, ""),
-    homeML,
-    awayML,
-    spread: homeSpread?.point ?? 0,
-    spreadOdds: homeSpread?.price ?? -110,
-    total: total?.point ?? 0,
-    bookmaker: bk.title,
-    time: time.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }),
-    date: time.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    id:g.id,home:home,away:away,
+    homeML:homeML.price,awayML:awayML.price,
+    spread:homeSpread?homeSpread.point:null,
+    spreadOdds:homeSpread?homeSpread.price:-110,
+    total:overTotal?overTotal.point:null,
+    book:bk.title,
+    time:t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZoneName:'short'}),
+    date:t.toLocaleDateString([],{month:'short',day:'numeric'})
   };
 }
 
-const ROUNDS = ["R1", "R2", "Sweet 16", "Elite 8", "Final Four", "Championship"];
+function escQ(s){ return s.replace(/'/g,"\\'"); }
+function shortName(t){ return t.split(' ').slice(-1)[0]; }
 
-// ─── Main App ───────────────────────────────────────────────────
-export default function App() {
-  const [tab, setTab] = useState("odds");
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const [betSlip, setBetSlip] = useState([]);
-  const [wager, setWager] = useState(100);
-  const [pasteText, setPasteText] = useState("");
-  const [parsedOdds, setParsedOdds] = useState([]);
-  const [history, setHistory] = useState([
-    { id: 1, desc: "Duke ML -145", wager: 50, result: "Win", payout: 84.48, date: "Mar 28" },
-    { id: 2, desc: "2-Team Parlay", wager: 25, result: "Loss", payout: 0, date: "Mar 27" },
-    { id: 3, desc: "Kansas +2.5 -110", wager: 100, result: "Win", payout: 190.91, date: "Mar 25" },
-  ]);
-
-  const fetchOdds = useCallback(async () => {
-    if (!ODDS_API_KEY || ODDS_API_KEY === "YOUR_API_KEY_HERE") {
-      setError("add_key");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(ODDS_URL);
-      if (!res.ok) throw new Error(`API error ${res.status}`);
-      const data = await res.json();
-      const transformed = data.map(transformGame).filter(Boolean);
-      setGames(transformed);
-      setLastUpdated(new Date().toLocaleTimeString());
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchOdds(); }, [fetchOdds]);
-
-  const addToBetSlip = useCallback((game, type, odds, label) => {
-    const key = `${game.id}-${type}`;
-    setBetSlip(prev =>
-      prev.find(b => b.key === key) ? prev.filter(b => b.key !== key) : [...prev, { key, label, odds }]
-    );
-  }, []);
-
-  const isInSlip = (game, type) => betSlip.some(b => b.key === `${game.id}-${type}`);
-  const parlay = calcParlay(betSlip);
-  const parlayPayout = (wager * parlay.dec).toFixed(2);
-  const parlayProfit = (wager * parlay.dec - wager).toFixed(2);
-
-  const parseOdds = () => {
-    const lines = pasteText.split("\n").filter(l => l.trim());
-    const parsed = [];
-    lines.forEach(line => {
-      const matches = [...line.matchAll(/([A-Za-z ]+?)\s+([+-]\d+)/g)].map(m => ({ team: m[1].trim(), odds: parseInt(m[2]) }));
-      if (matches.length >= 2) parsed.push({ home: matches[0].team, away: matches[1].team, homeML: matches[0].odds, awayML: matches[1].odds });
-      else if (matches.length === 1) parsed.push({ team: matches[0].team, odds: matches[0].odds });
-    });
-    setParsedOdds(parsed);
-  };
-
-  const TABS = [["odds","ODDS"], ["calc","CALC"], ["slip","SLIP"], ["paste","IMPORT"], ["history","LOG"]];
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#080c17", fontFamily: "'DM Mono','Fira Mono',monospace", color: "#e0e6f0", maxWidth: 480, margin: "0 auto" }}>
-
-      {/* ── Header ── */}
-      <div style={{ background: "linear-gradient(160deg,#0c1428,#182038)", borderBottom: "2px solid #f59e0b", padding: "18px 18px 12px", position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 3, textTransform: "uppercase" }}>NCAA Tournament</div>
-            <div style={{ fontSize: 21, fontWeight: 700, color: "#fff", letterSpacing: -0.5, marginTop: 2 }}>Bracket Odds <span style={{ color: "#f59e0b" }}>⚡</span></div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <button onClick={fetchOdds} disabled={loading} style={{ background: loading ? "#1a2535" : "rgba(245,158,11,0.15)", border: "1px solid #f59e0b", borderRadius: 8, color: "#f59e0b", cursor: "pointer", padding: "6px 12px", fontSize: 10, fontFamily: "inherit", fontWeight: 700, letterSpacing: 1 }}>
-              {loading ? "⟳ LOADING" : "↻ REFRESH"}
-            </button>
-            {lastUpdated && <div style={{ fontSize: 9, color: "#445566", marginTop: 4 }}>Updated {lastUpdated}</div>}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
-          {TABS.map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)} style={{
-              flex: 1, padding: "7px 2px", borderRadius: 8, border: "none", cursor: "pointer",
-              fontSize: 9, fontWeight: 700, letterSpacing: 0.5, fontFamily: "inherit",
-              background: tab === key ? "#f59e0b" : "#1a2535",
-              color: tab === key ? "#080c17" : "#667788",
-              position: "relative",
-            }}>
-              {label}
-              {key === "slip" && betSlip.length > 0 && (
-                <span style={{ position: "absolute", top: -4, right: -2, background: "#ef4444", borderRadius: 10, fontSize: 8, padding: "1px 4px", color: "#fff" }}>{betSlip.length}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ padding: "14px 14px 80px" }}>
-
-        {/* ── ODDS TAB ── */}
-        {tab === "odds" && (
-          <div>
-            {error === "add_key" && (
-              <div style={{ background: "rgba(245,158,11,0.1)", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 14, fontSize: 12, lineHeight: 1.7 }}>
-                <div style={{ color: "#f59e0b", fontWeight: 700, marginBottom: 6 }}>⚙ ADD YOUR API KEY</div>
-                1. Get a free key at <strong>the-odds-api.com</strong><br />
-                2. Replace <code style={{ color: "#60a5fa" }}>YOUR_API_KEY_HERE</code> at the top of this file<br />
-                3. Free tier: 500 requests/month (plenty for personal use)<br /><br />
-                <div style={{ color: "#8899aa", fontSize: 11 }}>Until then, use the IMPORT tab to paste odds manually.</div>
-              </div>
-            )}
-            {error && error !== "add_key" && (
-              <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid #ef4444", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 12, color: "#ef4444" }}>
-                Error: {error} — <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={fetchOdds}>retry</span>
-              </div>
-            )}
-            {loading && (
-              <div style={{ textAlign: "center", padding: 40, color: "#445566", fontSize: 13 }}>Fetching live odds…</div>
-            )}
-            {!loading && games.length === 0 && !error && (
-              <div style={{ textAlign: "center", padding: 40, color: "#445566", fontSize: 13 }}>
-                No NCAA Tournament games currently scheduled.<br />
-                <span style={{ fontSize: 11, marginTop: 8, display: "block" }}>Check back closer to tournament time, or use IMPORT to paste odds.</span>
-              </div>
-            )}
-            {games.map(game => <GameCard key={game.id} game={game} addToBetSlip={addToBetSlip} isInSlip={isInSlip} />)}
-          </div>
-        )}
-
-        {/* ── SLIP TAB ── */}
-        {tab === "slip" && (
-          <div>
-            {betSlip.length === 0 ? (
-              <div style={{ textAlign: "center", color: "#334455", padding: 50, fontSize: 13 }}>
-                Tap any odds button on the Odds tab<br />to build your parlay slip.
-              </div>
-            ) : (
-              <>
-                {betSlip.map(b => (
-                  <div key={b.key} style={{ background: "#111825", border: "1px solid #1e2e40", borderRadius: 10, padding: "11px 13px", marginBottom: 7, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{b.label}</div>
-                      <div style={{ fontSize: 10, color: "#667788", marginTop: 2 }}>Implied {impliedProb(b.odds)}%</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: b.odds > 0 ? "#34d399" : "#fb923c" }}>{fmt(b.odds)}</span>
-                      <button onClick={() => setBetSlip(p => p.filter(x => x.key !== b.key))} style={{ background: "rgba(239,68,68,0.15)", border: "none", borderRadius: 6, color: "#ef4444", cursor: "pointer", padding: "4px 8px", fontFamily: "inherit", fontSize: 11 }}>✕</button>
-                    </div>
-                  </div>
-                ))}
-                <div style={{ background: "linear-gradient(135deg,#0f1f0f,#162014)", border: "1px solid #34d399", borderRadius: 12, padding: 16, marginTop: 14 }}>
-                  <div style={{ fontSize: 10, color: "#34d399", letterSpacing: 2, marginBottom: 12 }}>PARLAY SUMMARY</div>
-                  <Row label="Legs" val={`${betSlip.length}-team`} />
-                  <Row label="Combined odds" val={fmt(parlay.american)} />
-                  <Row label="Implied probability" val={`${parlay.prob}%`} />
-                  <div style={{ height: 1, background: "#1f3025", margin: "10px 0" }} />
-                  <label style={{ fontSize: 10, color: "#667788", display: "block", marginBottom: 5 }}>WAGER ($)</label>
-                  <input type="number" value={wager} onChange={e => setWager(Number(e.target.value))} style={{ width: "100%", background: "#0a100a", border: "1px solid #34d399", borderRadius: 8, color: "#fff", padding: "9px 11px", fontSize: 16, fontFamily: "inherit", boxSizing: "border-box" }} />
-                  <div style={{ marginTop: 12 }}>
-                    <Row label="Total payout" val={`$${parlayPayout}`} valColor="#34d399" large />
-                    <Row label="Profit" val={`+$${parlayProfit}`} valColor="#34d399" />
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── CALC TAB ── */}
-        {tab === "calc" && (
-          <div>
-            <SingleBetCalc />
-            <ParlayCalc />
-          </div>
-        )}
-
-        {/* ── IMPORT TAB ── */}
-        {tab === "paste" && (
-          <div>
-            <div style={{ fontSize: 12, color: "#667788", marginBottom: 10, lineHeight: 1.7 }}>
-              Paste odds from ESPN, Vegas Insider, Action Network, etc.<br />
-              <span style={{ color: "#f59e0b" }}>Format: Team1 -150 Team2 +130</span>
-            </div>
-            <textarea value={pasteText} onChange={e => setPasteText(e.target.value)}
-              placeholder={"Example:\nDuke -145 UNC +125\nKansas +110 Houston -130\nPurdue -160 Tennessee +140"}
-              style={{ width: "100%", minHeight: 150, background: "#111825", border: "1px solid #1e2e40", borderRadius: 10, color: "#e0e6f0", padding: 12, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical" }} />
-            <button onClick={parseOdds} style={{ width: "100%", padding: 12, background: "#f59e0b", border: "none", borderRadius: 10, color: "#080c17", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", marginTop: 10 }}>PARSE ODDS</button>
-            {parsedOdds.length > 0 && (
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 10 }}>PARSED — {parsedOdds.length} matchup{parsedOdds.length > 1 ? "s" : ""}</div>
-                {parsedOdds.map((g, i) => (
-                  <div key={i} style={{ background: "#111825", border: "1px solid #1e2e40", borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
-                    {g.home ? (
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <div><div style={{ fontSize: 13, fontWeight: 600 }}>{g.away}</div><div style={{ fontSize: 10, color: "#667788" }}>vs {g.home}</div></div>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontWeight: 700, color: g.awayML > 0 ? "#34d399" : "#fb923c" }}>{fmt(g.awayML)}</div>
-                          <div style={{ fontWeight: 700, color: g.homeML > 0 ? "#34d399" : "#fb923c" }}>{fmt(g.homeML)}</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ fontSize: 13 }}>{g.team}</span>
-                        <span style={{ fontWeight: 700, color: g.odds > 0 ? "#34d399" : "#fb923c" }}>{fmt(g.odds)}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── HISTORY TAB ── */}
-        {tab === "history" && (
-          <div>
-            <HistoryStats history={history} />
-            {history.map(h => (
-              <div key={h.id} style={{
-                background: "#111825",
-                borderLeft: `3px solid ${h.result === "Win" ? "#34d399" : "#ef4444"}`,
-                borderRadius: 10, padding: "11px 13px", marginBottom: 7,
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-              }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{h.desc}</div>
-                  <div style={{ fontSize: 10, color: "#667788", marginTop: 2 }}>{h.date} · Wagered ${h.wager}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: h.result === "Win" ? "#34d399" : "#ef4444" }}>{h.result}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: h.result === "Win" ? "#34d399" : "#8899aa" }}>
-                    {h.result === "Win" ? `$${h.payout.toFixed(2)}` : `-$${h.wager}`}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <style>{`* { -webkit-tap-highlight-color: transparent; } input:focus,textarea:focus { outline: none; } ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: #1e2e40; border-radius: 4px; }`}</style>
-    </div>
-  );
+function renderGames(data){
+  var games=data.map(transformGame).filter(Boolean);
+  var html='';
+  games.forEach(function(g){
+    var fav=g.homeML<g.awayML?'home':'away';
+    var hAct=isInSlip(g.id,'homeML'),aAct=isInSlip(g.id,'awayML');
+    var spAct=isInSlip(g.id,'spread'),ouAct=isInSlip(g.id,'ou');
+    var spLabel=g.spread!=null?shortName(g.home)+' '+fmt(g.spread):'N/A';
+    var totLabel=g.total!=null?''+g.total:'N/A';
+    html+='<div class="card">'
+      +'<div class="card-header"><span class="book">'+g.book+'</span><span class="time">'+g.date+' · '+g.time+'</span></div>'
+      +'<div class="card-body">'
+      +'<div class="team-row">'
+      +'<div><div class="team-name'+(fav==='away'?' fav':'')+'">'+g.away+(fav==='away'?'<span class="fav-star">★</span>':'')+'</div><div class="implied">Implied '+implied(g.awayML)+'%</div></div>'
+      +'<button class="odds-btn '+(g.awayML>0?'dog':'fav-btn')+(aAct?' active':'')+'" onclick="toggleSlip(\''+g.id+'\',\'awayML\','+g.awayML+',\''+escQ(g.away)+' ML\',this)">'+fmt(g.awayML)+'</button>'
+      +'</div>'
+      +'<div class="team-row">'
+      +'<div><div class="team-name'+(fav==='home'?' fav':'')+'">'+g.home+(fav==='home'?'<span class="fav-star">★</span>':'')+'</div><div class="implied">Implied '+implied(g.homeML)+'%</div></div>'
+      +'<button class="odds-btn '+(g.homeML>0?'dog':'fav-btn')+(hAct?' active':'')+'" onclick="toggleSlip(\''+g.id+'\',\'homeML\','+g.homeML+',\''+escQ(g.home)+' ML\',this)">'+fmt(g.homeML)+'</button>'
+      +'</div>'
+      +'<div class="sub-bets">'
+      +'<button class="sub-btn'+(spAct?' active':'')+'" onclick="toggleSlip(\''+g.id+'\',\'spread\','+g.spreadOdds+',\''+escQ(spLabel)+'\',this)"><div class="sub-label">SPREAD</div><div class="sub-val">'+spLabel+'</div><div class="sub-odds">'+fmt(g.spreadOdds)+'</div></button>'
+      +'<button class="sub-btn'+(ouAct?' active':'')+'" onclick="toggleSlip(\''+g.id+'\',\'ou\',-110,\'O/U '+totLabel+'\',this)"><div class="sub-label">TOTAL</div><div class="sub-val">'+totLabel+'</div><div class="sub-odds">O/U -110</div></button>'
+      +'</div></div></div>';
+  });
+  document.getElementById('odds-list').innerHTML=html;
 }
 
-function Row({ label, val, valColor = "#fff", large }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-      <span style={{ fontSize: 12, color: "#667788" }}>{label}</span>
-      <span style={{ fontSize: large ? 16 : 13, fontWeight: 700, color: valColor }}>{val}</span>
-    </div>
-  );
+// ══ BET SLIP ══
+function isInSlip(gid,type){ return betSlip.some(function(b){return b.key===gid+'-'+type;}); }
+
+function toggleSlip(gid,type,odds,label,btn){
+  var key=gid+'-'+type;
+  var idx=betSlip.findIndex(function(b){return b.key===key;});
+  if(idx>-1){betSlip.splice(idx,1);btn.classList.remove('active');}
+  else{betSlip.push({key:key,label:label,odds:odds});btn.classList.add('active');}
+  renderSlip();updateBadge();
 }
 
-function GameCard({ game, addToBetSlip, isInSlip }) {
-  const fav = game.homeML < game.awayML ? "home" : "away";
-  return (
-    <div style={{ background: "#111825", border: "1px solid #1a2a3a", borderRadius: 14, marginBottom: 12, overflow: "hidden" }}>
-      <div style={{ background: "#0d1520", padding: "7px 13px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid #1a2535" }}>
-        <span style={{ fontSize: 9, color: "#f59e0b", fontWeight: 700, letterSpacing: 1 }}>{game.bookmaker?.toUpperCase()}</span>
-        <span style={{ fontSize: 10, color: "#556677" }}>{game.date} · {game.time}</span>
-      </div>
-      <div style={{ padding: "12px 13px" }}>
-        {[["away", game.away, game.awayML], ["home", game.home, game.homeML]].map(([side, team, ml]) => (
-          <div key={side} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: side === "away" ? "1px solid #151f2e" : "none" }}>
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 14, fontWeight: fav === side ? 700 : 400, color: fav === side ? "#fff" : "#99aabb" }}>{team}</span>
-              {fav === side && <span style={{ fontSize: 8, color: "#f59e0b", marginLeft: 6 }}>★</span>}
-              <div style={{ fontSize: 9, color: "#445566", marginTop: 1 }}>Implied {impliedProb(ml)}%</div>
-            </div>
-            <OddsBtn active={isInSlip(game, `${side}ML`)} odds={ml} onClick={() => addToBetSlip(game, `${side}ML`, ml, `${team} ML`)} />
-          </div>
-        ))}
-        <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
-          <SmallBtn active={isInSlip(game, "spread")} label="SPREAD" val={`${game.home.split(" ").pop()} ${fmt(game.spread)}`} sub={fmt(game.spreadOdds)} onClick={() => addToBetSlip(game, "spread", game.spreadOdds, `${game.home} ${fmt(game.spread)}`)} />
-          <SmallBtn active={isInSlip(game, "ou")} label="TOTAL" val={game.total > 0 ? `${game.total}` : "—"} sub="O/U -110" onClick={() => addToBetSlip(game, "ou", -110, `O/U ${game.total}`)} />
-        </div>
-      </div>
-    </div>
-  );
+function updateBadge(){
+  var b=document.getElementById('slip-badge');
+  if(betSlip.length){b.style.display='block';b.textContent=betSlip.length;}
+  else b.style.display='none';
 }
 
-function OddsBtn({ active, odds, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: "6px 13px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 700, minWidth: 64, transition: "all 0.1s",
-      border: `1px solid ${active ? "#f59e0b" : odds > 0 ? "#34d39933" : "#fb923c33"}`,
-      background: active ? "rgba(245,158,11,0.2)" : odds > 0 ? "rgba(52,211,153,0.07)" : "rgba(251,146,60,0.07)",
-      color: active ? "#f59e0b" : odds > 0 ? "#34d399" : "#fb923c",
-    }}>{fmt(odds)}</button>
-  );
+function renderSlip(){
+  var legsEl=document.getElementById('slip-legs');
+  var emptyEl=document.getElementById('slip-empty');
+  var summaryEl=document.getElementById('slip-summary');
+  if(!betSlip.length){emptyEl.style.display='block';legsEl.innerHTML='';summaryEl.style.display='none';return;}
+  emptyEl.style.display='none';summaryEl.style.display='block';
+  legsEl.innerHTML=betSlip.map(function(b){
+    return '<div class="slip-leg"><div><div class="leg-label">'+b.label+'</div><div class="leg-implied">Implied '+implied(b.odds)+'%</div></div>'
+      +'<div style="display:flex;align-items:center;gap:10px"><span class="leg-odds '+(b.odds>0?'dog':'fav-c')+'">'+fmt(b.odds)+'</span>'
+      +'<button class="remove-btn" onclick="removeSlipItem(\''+b.key+'\')">✕</button></div></div>';
+  }).join('');
+  updateSlipSummary();
 }
 
-function SmallBtn({ active, label, val, sub, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      flex: 1, padding: "8px 6px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "center",
-      border: `1px solid ${active ? "#f59e0b" : "#1a2a3a"}`,
-      background: active ? "rgba(245,158,11,0.12)" : "#0d1520",
-      color: active ? "#f59e0b" : "#99aabb",
-    }}>
-      <div style={{ fontSize: 9, color: active ? "#f59e0b" : "#445566", marginBottom: 2, letterSpacing: 1 }}>{label}</div>
-      <div style={{ fontSize: 12, fontWeight: 600 }}>{val}</div>
-      <div style={{ fontSize: 10, color: "#556677" }}>{sub}</div>
-    </button>
-  );
+function removeSlipItem(key){
+  betSlip=betSlip.filter(function(b){return b.key!==key;});
+  renderSlip();updateBadge();
 }
 
-function SingleBetCalc() {
-  const [odds, setOdds] = useState(-110);
-  const [wager, setWager] = useState(100);
-  const dec = americanToDecimal(odds);
-  const payout = (wager * dec).toFixed(2);
-  const profit = (wager * dec - wager).toFixed(2);
-
-  return (
-    <div style={{ background: "#111825", border: "1px solid #1a2a3a", borderRadius: 14, padding: 16, marginBottom: 12 }}>
-      <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 12 }}>SINGLE BET CALCULATOR</div>
-      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-        {[["ODDS", odds, setOdds], ["WAGER ($)", wager, setWager]].map(([lbl, val, set]) => (
-          <div key={lbl} style={{ flex: 1 }}>
-            <label style={{ fontSize: 9, color: "#556677", display: "block", marginBottom: 5, letterSpacing: 1 }}>{lbl}</label>
-            <input type="number" value={val} onChange={e => set(Number(e.target.value))} style={{ width: "100%", background: "#080c17", border: "1px solid #1e2e40", borderRadius: 8, color: "#fff", padding: "9px 10px", fontSize: 16, fontFamily: "inherit", boxSizing: "border-box" }} />
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 7 }}>
-        {[["PAYOUT", `$${payout}`, "#e0e6f0"], ["PROFIT", `+$${profit}`, "#34d399"], ["IMPLIED", `${impliedProb(odds)}%`, "#60a5fa"]].map(([l, v, c]) => (
-          <div key={l} style={{ flex: 1, background: "#080c17", borderRadius: 8, padding: "9px 6px", textAlign: "center" }}>
-            <div style={{ fontSize: 8, color: "#445566", letterSpacing: 1, marginBottom: 3 }}>{l}</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: c }}>{v}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+function updateSlipSummary(){
+  if(!betSlip.length) return;
+  var w=parseFloat(document.getElementById('slip-wager').value)||0;
+  var p=calcParlay(betSlip);
+  document.getElementById('s-legs').textContent=betSlip.length+'-team parlay';
+  document.getElementById('s-combined').textContent=fmt(p.american);
+  document.getElementById('s-prob').textContent=p.prob+'%';
+  document.getElementById('s-payout').textContent='$'+(w*p.dec).toFixed(2);
+  document.getElementById('s-profit').textContent='+$'+(w*p.dec-w).toFixed(2);
 }
 
-function ParlayCalc() {
-  const [legs, setLegs] = useState([{ id: 1, odds: -110 }, { id: 2, odds: +150 }]);
-  const [wager, setWager] = useState(50);
-  const addLeg = () => setLegs(p => [...p, { id: Date.now(), odds: -110 }]);
-  const removeLeg = id => setLegs(p => p.filter(l => l.id !== id));
-  const updateLeg = (id, odds) => setLegs(p => p.map(l => l.id === id ? { ...l, odds } : l));
-  const parlay = calcParlay(legs);
-  const payout = (wager * parlay.dec).toFixed(2);
-  const profit = (wager * parlay.dec - wager).toFixed(2);
-
-  return (
-    <div style={{ background: "#111825", border: "1px solid #1a2a3a", borderRadius: 14, padding: 16 }}>
-      <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 12 }}>PARLAY BUILDER</div>
-      {legs.map((leg, i) => (
-        <div key={leg.id} style={{ display: "flex", gap: 7, alignItems: "center", marginBottom: 7 }}>
-          <div style={{ fontSize: 10, color: "#445566", width: 18 }}>L{i + 1}</div>
-          <input type="number" value={leg.odds} onChange={e => updateLeg(leg.id, Number(e.target.value))} style={{ flex: 1, background: "#080c17", border: "1px solid #1e2e40", borderRadius: 8, color: leg.odds > 0 ? "#34d399" : "#fb923c", padding: "8px 10px", fontSize: 14, fontFamily: "inherit" }} />
-          <div style={{ fontSize: 10, color: "#556677", width: 34, textAlign: "center" }}>{impliedProb(leg.odds)}%</div>
-          <button onClick={() => removeLeg(leg.id)} style={{ background: "rgba(239,68,68,0.12)", border: "none", borderRadius: 6, color: "#ef4444", cursor: "pointer", padding: "5px 7px", fontFamily: "inherit", fontSize: 10 }}>✕</button>
-        </div>
-      ))}
-      <button onClick={addLeg} style={{ width: "100%", padding: "7px", background: "transparent", border: "1px dashed #1e2e40", borderRadius: 8, color: "#556677", cursor: "pointer", fontSize: 11, fontFamily: "inherit", marginBottom: 10 }}>+ Add Leg</button>
-      <label style={{ fontSize: 9, color: "#556677", display: "block", marginBottom: 5, letterSpacing: 1 }}>WAGER ($)</label>
-      <input type="number" value={wager} onChange={e => setWager(Number(e.target.value))} style={{ width: "100%", background: "#080c17", border: "1px solid #1e2e40", borderRadius: 8, color: "#fff", padding: "9px 10px", fontSize: 16, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12 }} />
-      <div style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 10, padding: 11 }}>
-        <Row label={`${legs.length}-Leg Parlay`} val={fmt(parlay.american)} valColor="#f59e0b" />
-        <Row label="Implied prob" val={`${parlay.prob}%`} />
-        <div style={{ height: 1, background: "#1e2a14", margin: "8px 0" }} />
-        <Row label="Total payout" val={`$${payout}`} valColor="#34d399" large />
-        <Row label="Profit" val={`+$${profit}`} valColor="#34d399" />
-      </div>
-    </div>
-  );
+// ══ SINGLE CALC ══
+function updateSingle(){
+  var odds=parseInt(document.getElementById('single-odds').value)||0;
+  var wager=parseFloat(document.getElementById('single-wager').value)||0;
+  if(!odds) return;
+  var dec=aToDec(odds);
+  document.getElementById('single-payout').textContent='$'+(wager*dec).toFixed(2);
+  document.getElementById('single-profit').textContent='+$'+(wager*dec-wager).toFixed(2);
+  document.getElementById('single-implied').textContent=implied(odds)+'%';
 }
 
-function HistoryStats({ history }) {
-  const wins = history.filter(h => h.result === "Win").length;
-  const wagered = history.reduce((a, h) => a + h.wager, 0);
-  const returned = history.filter(h => h.result === "Win").reduce((a, h) => a + h.payout, 0);
-  const roi = (((returned - wagered) / wagered) * 100).toFixed(1);
-  return (
-    <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>
-      {[["WIN RATE", `${wins}/${history.length}`, "#60a5fa"], ["WAGERED", `$${wagered}`, "#e0e6f0"], ["ROI", `${roi}%`, Number(roi) >= 0 ? "#34d399" : "#ef4444"]].map(([l, v, c]) => (
-        <div key={l} style={{ flex: 1, background: "#111825", border: "1px solid #1a2a3a", borderRadius: 10, padding: "9px 7px", textAlign: "center" }}>
-          <div style={{ fontSize: 8, color: "#445566", letterSpacing: 1, marginBottom: 3 }}>{l}</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: c }}>{v}</div>
-        </div>
-      ))}
-    </div>
-  );
+// ══ PARLAY CALC ══
+function renderParlayLegs(){
+  document.getElementById('parlay-legs').innerHTML=parlayLegs.map(function(l,i){
+    return '<div class="parlay-leg-row"><div class="leg-num">L'+(i+1)+'</div>'
+      +'<input class="leg-input '+(l.odds>0?'dog':'fav-c')+'" type="number" value="'+l.odds+'" oninput="updateParlayLeg('+l.id+',this.value)"/>'
+      +'<div class="leg-pct">'+implied(l.odds)+'%</div>'
+      +'<button class="remove-leg" onclick="removeParlayLeg('+l.id+')">✕</button></div>';
+  }).join('');
 }
+function addParlayLeg(){parlayLegs.push({id:parlayLegId++,odds:-110});renderParlayLegs();updateParlay();}
+function removeParlayLeg(id){if(parlayLegs.length<=1)return;parlayLegs=parlayLegs.filter(function(l){return l.id!==id;});renderParlayLegs();updateParlay();}
+function updateParlayLeg(id,val){
+  var odds=parseInt(val)||0;
+  var leg=parlayLegs.find(function(l){return l.id===id;});
+  if(leg){leg.odds=odds;}
+  renderParlayLegs();updateParlay();
+}
+function updateParlay(){
+  var w=parseFloat(document.getElementById('parlay-wager').value)||0;
+  var p=calcParlay(parlayLegs);
+  document.getElementById('parlay-leg-count').textContent=parlayLegs.length+'-Leg Parlay';
+  document.getElementById('parlay-combined').textContent=fmt(p.american);
+  document.getElementById('parlay-prob').textContent=p.prob+'%';
+  document.getElementById('parlay-payout').textContent='$'+(w*p.dec).toFixed(2);
+  document.getElementById('parlay-profit').textContent='+$'+(w*p.dec-w).toFixed(2);
+}
+
+// ══ IMPORT ══
+function parseOdds(){
+  var text=document.getElementById('paste-area').value;
+  var lines=text.split('\n').filter(function(l){return l.trim();});
+  var parsed=[];
+  lines.forEach(function(line){
+    var matches=[];
+    var re=/([A-Za-z ]+?)\s+([+-]\d+)/g,m;
+    while((m=re.exec(line))!==null) matches.push({team:m[1].trim(),odds:parseInt(m[2])});
+    if(matches.length>=2) parsed.push({home:matches[0].team,away:matches[1].team,homeML:matches[0].odds,awayML:matches[1].odds});
+    else if(matches.length===1) parsed.push({team:matches[0].team,odds:matches[0].odds});
+  });
+  var el=document.getElementById('parsed-results');
+  if(!parsed.length){el.innerHTML='<div class="alert-red" style="margin-top:12px">No odds detected. Format: Team -150 Team +130</div>';return;}
+  el.innerHTML='<div class="parsed-title">PARSED — '+parsed.length+' matchup'+(parsed.length>1?'s':'')+'</div>'
+    +parsed.map(function(g){
+      return g.home
+        ?'<div class="parsed-card"><div><div style="font-size:13px;font-weight:600">'+g.away+'</div><div style="font-size:10px;color:#667788">vs '+g.home+'</div></div><div style="text-align:right"><div style="font-weight:700;color:'+(g.awayML>0?'#34d399':'#fb923c')+'">'+fmt(g.awayML)+'</div><div style="font-weight:700;color:'+(g.homeML>0?'#34d399':'#fb923c')+'">'+fmt(g.homeML)+'</div></div></div>'
+        :'<div class="parsed-card"><span style="font-size:13px">'+g.team+'</span><span style="font-weight:700;color:'+(g.odds>0?'#34d399':'#fb923c')+'">'+fmt(g.odds)+'</span></div>';
+    }).join('');
+}
+
+// ══ HISTORY ══
+function renderHistory(){
+  var wins=historyData.filter(function(h){return h.result==='Win';}).length;
+  var wagered=historyData.reduce(function(a,h){return a+h.wager;},0);
+  var returned=historyData.filter(function(h){return h.result==='Win';}).reduce(function(a,h){return a+h.payout;},0);
+  var roi=(((returned-wagered)/wagered)*100).toFixed(1);
+  document.getElementById('h-winrate').textContent=wins+'/'+historyData.length;
+  document.getElementById('h-wagered').textContent='$'+wagered;
+  var roiEl=document.getElementById('h-roi');
+  roiEl.textContent=roi+'%';
+  roiEl.style.color=Number(roi)>=0?'#34d399':'#ef4444';
+  document.getElementById('history-list').innerHTML=historyData.map(function(h){
+    return '<div class="hist-row" style="background:#111825;border-left:3px solid '+(h.result==='Win'?'#34d399':'#ef4444')+'">'
+      +'<div><div class="hist-desc">'+h.desc+'</div><div class="hist-meta">'+h.date+' · Wagered $'+h.wager+'</div></div>'
+      +'<div style="text-align:right"><div style="font-size:11px;font-weight:700;color:'+(h.result==='Win'?'#34d399':'#ef4444')+'">'+h.result+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:'+(h.result==='Win'?'#34d399':'#8899aa')+'">'+(h.result==='Win'?'$'+h.payout.toFixed(2):'-$'+h.wager)+'</div></div>'
+      +'</div>';
+  }).join('');
+}
+</script>
+</body>
+</html>
