@@ -256,6 +256,10 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
         <div class="stat-box"><div class="stat-label">WAGERED</div><div class="stat-val" id="h-wagered" style="color:#e0e6f0">—</div></div>
         <div class="stat-box"><div class="stat-label">ROI</div><div class="stat-val" id="h-roi">—</div></div>
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button onclick="addHistoryPrompt()" style="flex:1;padding:9px;background:rgba(52,211,153,0.1);border:1px solid #34d399;border-radius:8px;color:#34d399;font-size:11px;font-weight:700;letter-spacing:1px">+ ADD BET</button>
+        <button onclick="clearHistory()" style="flex:1;padding:9px;background:rgba(239,68,68,0.1);border:1px solid #ef4444;border-radius:8px;color:#ef4444;font-size:11px;font-weight:700;letter-spacing:1px">🗑 CLEAR ALL</button>
+      </div>
       <div id="history-list"></div>
     </div>
 
@@ -533,21 +537,58 @@ function parseOdds(){
 }
 
 // ══ HISTORY ══
+function saveHistory(){ localStorage.setItem('betHistory', JSON.stringify(historyData)); }
+
+function clearHistory(){
+  if(!confirm('Delete all bet history?')) return;
+  historyData=[];
+  saveHistory();
+  renderHistory();
+}
+
+function deleteHistoryItem(id){
+  historyData=historyData.filter(function(h){return h.id!==id;});
+  saveHistory();
+  renderHistory();
+}
+
+function addHistoryPrompt(){
+  var desc=prompt('Bet description (e.g. Duke ML -145):');
+  if(!desc) return;
+  var wager=parseFloat(prompt('Wager amount ($):'));
+  if(!wager) return;
+  var result=confirm('Did you WIN this bet?\nOK = Win   Cancel = Loss');
+  var payout=0;
+  if(result){
+    payout=parseFloat(prompt('Total payout received ($):'))||0;
+  }
+  var today=new Date().toLocaleDateString([],{month:'short',day:'numeric'});
+  historyData.unshift({id:Date.now(),desc:desc,wager:wager,result:result?'Win':'Loss',payout:payout,date:today});
+  saveHistory();
+  renderHistory();
+}
+
 function renderHistory(){
   var wins=historyData.filter(function(h){return h.result==='Win';}).length;
   var wagered=historyData.reduce(function(a,h){return a+h.wager;},0);
   var returned=historyData.filter(function(h){return h.result==='Win';}).reduce(function(a,h){return a+h.payout;},0);
-  var roi=(((returned-wagered)/wagered)*100).toFixed(1);
+  var roi=wagered>0?(((returned-wagered)/wagered)*100).toFixed(1):'0.0';
   document.getElementById('h-winrate').textContent=wins+'/'+historyData.length;
   document.getElementById('h-wagered').textContent='$'+wagered;
   var roiEl=document.getElementById('h-roi');
   roiEl.textContent=roi+'%';
   roiEl.style.color=Number(roi)>=0?'#34d399':'#ef4444';
+  if(!historyData.length){
+    document.getElementById('history-list').innerHTML='<div class="empty">No bets logged yet.<br/>Tap + ADD BET to record one.</div>';
+    return;
+  }
   document.getElementById('history-list').innerHTML=historyData.map(function(h){
     return '<div class="hist-row" style="background:#111825;border-left:3px solid '+(h.result==='Win'?'#34d399':'#ef4444')+'">'
-      +'<div><div class="hist-desc">'+h.desc+'</div><div class="hist-meta">'+h.date+' · Wagered $'+h.wager+'</div></div>'
-      +'<div style="text-align:right"><div style="font-size:11px;font-weight:700;color:'+(h.result==='Win'?'#34d399':'#ef4444')+'">'+h.result+'</div>'
+      +'<div style="flex:1"><div class="hist-desc">'+h.desc+'</div><div class="hist-meta">'+h.date+' · Wagered $'+h.wager+'</div></div>'
+      +'<div style="text-align:right;margin-left:10px">'
+      +'<div style="font-size:11px;font-weight:700;color:'+(h.result==='Win'?'#34d399':'#ef4444')+'">'+h.result+'</div>'
       +'<div style="font-size:13px;font-weight:700;color:'+(h.result==='Win'?'#34d399':'#8899aa')+'">'+(h.result==='Win'?'$'+h.payout.toFixed(2):'-$'+h.wager)+'</div></div>'
+      +'<button onclick="deleteHistoryItem('+h.id+')" style="margin-left:10px;background:rgba(239,68,68,0.15);border:none;border-radius:6px;color:#ef4444;padding:4px 8px;font-size:11px;font-family:inherit">✕</button>'
       +'</div>';
   }).join('');
 }
