@@ -1458,23 +1458,26 @@ function renderPicks(){
         +'<div style="flex:1;height:4px;background:#1a2a3a;border-radius:2px"><div style="height:4px;border-radius:2px;background:'+col+';width:'+Math.min(Math.abs(edgeNum)*8,100)+'%"></div></div>'
         +'<div style="font-size:11px;font-weight:700;color:'+col+'">'+edgeStr+'</div>'
         +'</div>':'')
-      // Add to slip button for non-parlay
-      +(!p.isParlay?'<button onclick="addPickToSlip(\''+escQ(JSON.stringify({key:\'pick-\'+p.game.id+\'-\'+p.type, label:escQ(p.pick), odds:p.odds}))+\'\')" '
+      // Add to slip button for non-parlay - use data attributes to avoid quote escaping issues
+      +(!p.isParlay?'<button onclick="addPickToSlip(this)" '
+        +'data-key="pick-'+p.game.id+'-'+p.type+'" '
+        +'data-label="'+p.pick.replace(/"/g,'&quot;')+'" '
+        +'data-odds="'+p.odds+'" '
         +'style="margin-top:8px;padding:6px 12px;background:transparent;border:1px solid '+col+'44;border-radius:7px;color:'+col+';font-size:10px;font-weight:700;font-family:inherit">+ ADD TO SLIP</button>':'')
       +'</div>';
   }).join('');
 }
 
-function addPickToSlip(jsonStr){
-  try{
-    var p = JSON.parse(jsonStr);
-    if(!betSlip.find(function(b){return b.key===p.key;})){
-      betSlip.push({key:p.key, label:p.label, odds:p.odds});
-      updateBadge();
-      renderSlip();
-      showToast(p.label+' added to slip!');
-    }
-  } catch(e){}
+function addPickToSlip(btn){
+  var key = btn.getAttribute('data-key');
+  var label = btn.getAttribute('data-label');
+  var odds = parseInt(btn.getAttribute('data-odds'));
+  if(!betSlip.find(function(b){return b.key===key;})){
+    betSlip.push({key:key, label:label, odds:odds});
+    updateBadge();
+    renderSlip();
+    showToast(label+' added to slip!');
+  }
 }
 
 function renderSuggestedParlay(){
