@@ -179,15 +179,16 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
         <div class="brand-title">Bracket Odds <span>⚡</span></div>
       </div>
       <div>
-        <button id="refresh-btn" onclick="fetchOdds()">↻ REFRESH</button>
+        <button id="refresh-btn" onclick="refreshAll()">↻ REFRESH</button>
         <div id="last-updated"></div>
       </div>
     </div>
     <div id="tabs">
       <button class="tab active" data-tab="odds" onclick="switchTab('odds')">ODDS</button>
+      <button class="tab" data-tab="picks" onclick="switchTab('picks')">PICKS</button>
+      <button class="tab" data-tab="bets" onclick="switchTab('bets')">BETS<span class="badge" id="bets-badge" style="display:none">0</span></button>
       <button class="tab" data-tab="slip" onclick="switchTab('slip')">SLIP<span class="badge" id="slip-badge" style="display:none">0</span></button>
       <button class="tab" data-tab="calc" onclick="switchTab('calc')">CALC</button>
-      <button class="tab" data-tab="import" onclick="switchTab('import')">IMPORT</button>
       <button class="tab" data-tab="history" onclick="switchTab('history')">LOG</button>
       <button class="tab" data-tab="stats" onclick="switchTab('stats')">STATS</button>
     </div>
@@ -203,7 +204,158 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
       <div id="odds-list"></div>
     </div>
 
+    <!-- PICKS -->
+    <div id="tab-picks" class="tab-content" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div>
+          <div style="font-size:10px;color:#f59e0b;letter-spacing:2px">TODAY'S BEST PICKS</div>
+          <div style="font-size:11px;color:#7a8fa6;margin-top:2px">Ranked by statistical edge vs market odds</div>
+        </div>
+        <button onclick="generatePicks()" style="background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;padding:7px 12px;font-size:10px;font-weight:700;letter-spacing:1px">↻ REFRESH</button>
+      </div>
+
+      <!-- Filter pills -->
+      <div style="display:flex;gap:6px;margin:12px 0;overflow-x:auto;padding-bottom:4px" id="picks-filter-row">
+        <button class="picks-filter active-filter" data-filter="all" onclick="filterPicks('all')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #f59e0b;background:rgba(245,158,11,0.15);color:#f59e0b;font-size:10px;font-weight:700;font-family:inherit">ALL</button>
+        <button class="picks-filter" data-filter="ml" onclick="filterPicks('ml')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">MONEYLINE</button>
+        <button class="picks-filter" data-filter="spread" onclick="filterPicks('spread')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">SPREAD</button>
+        <button class="picks-filter" data-filter="ou" onclick="filterPicks('ou')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">OVER/UNDER</button>
+        <button class="picks-filter" data-filter="mismatch" onclick="filterPicks('mismatch')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">MISMATCH</button>
+        <button class="picks-filter" data-filter="parlay" onclick="filterPicks('parlay')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">PARLAY</button>
+      </div>
+
+      <div id="picks-loading" class="empty" style="display:none">Analyzing matchups…</div>
+
+      <!-- Claude AI Summary Box -->
+      <div id="claude-summary-box" style="background:linear-gradient(135deg,#0f1629,#1a2040);border:1px solid #3b4fd8;border-radius:14px;padding:16px;margin-bottom:14px;display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div>
+            <div style="font-size:10px;color:#818cf8;letter-spacing:2px;font-weight:700">CLAUDE AI SUMMARY</div>
+            <div style="font-size:10px;color:#4a5568;margin-top:2px" id="claude-summary-time"></div>
+          </div>
+          <button onclick="generateClaudeSummary()" id="claude-refresh-btn" style="background:rgba(129,140,248,0.15);border:1px solid #818cf8;border-radius:8px;color:#818cf8;padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:1px;font-family:inherit">↻ ASK CLAUDE</button>
+        </div>
+        <div id="claude-summary-content" style="font-size:13px;color:#c7d2fe;line-height:1.8"></div>
+      </div>
+      <div id="claude-summary-loading" style="display:none;background:linear-gradient(135deg,#0f1629,#1a2040);border:1px solid #3b4fd8;border-radius:14px;padding:16px;margin-bottom:14px">
+        <div style="font-size:10px;color:#818cf8;letter-spacing:2px;margin-bottom:10px">CLAUDE AI SUMMARY</div>
+        <div style="display:flex;align-items:center;gap:10px;color:#4a5568;font-size:13px">
+          <div id="claude-dots" style="color:#818cf8">●</div>
+          <span>Claude is analyzing today's matchups…</span>
+        </div>
+      </div>
+
+      <div id="picks-list"></div>
+      <div id="picks-empty" class="empty" style="display:none">
+        No picks available yet.<br/>
+        <span style="font-size:11px">Picks are generated from live odds + team stats.<br/>Tap Refresh or check back when games are scheduled.</span>
+      </div>
+
+      <!-- Parlay Builder from Picks -->
+      <div id="picks-parlay-box" style="display:none;margin-top:14px;background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:14px">
+        <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:10px">SUGGESTED PARLAY</div>
+        <div id="picks-parlay-legs"></div>
+        <div id="picks-parlay-summary"></div>
+        <button onclick="addParlayToSlip()" style="width:100%;padding:10px;background:#f59e0b;border:none;border-radius:8px;color:#080c17;font-size:12px;font-weight:700;font-family:inherit;margin-top:10px">ADD TO SLIP →</button>
+      </div>
+    </div>
+
+    <!-- BETS -->
+
+    <div id="tab-bets" class="tab-content" style="display:none">
+
+      <!-- Add New Bet Button -->
+      <button onclick="showAddBetForm()" id="add-bet-btn"
+        style="width:100%;padding:11px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:10px;color:#f59e0b;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:14px">
+        + ADD PENDING BET
+      </button>
+
+      <!-- Add Bet Form -->
+      <div id="add-bet-form" style="display:none;background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:16px;margin-bottom:14px">
+        <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:14px">NEW PENDING BET</div>
+
+        <label class="field-label">BET TYPE</label>
+        <div style="display:flex;gap:6px;margin-bottom:12px" id="bet-type-btns">
+          <button onclick="selectBetType('ml')" class="bet-type-btn active-type" data-type="ml" style="flex:1;padding:7px 4px;border-radius:7px;border:1px solid #f59e0b;background:rgba(245,158,11,0.2);color:#f59e0b;font-size:10px;font-weight:700;font-family:inherit">ML</button>
+          <button onclick="selectBetType('spread')" class="bet-type-btn" data-type="spread" style="flex:1;padding:7px 4px;border-radius:7px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">SPREAD</button>
+          <button onclick="selectBetType('ou')" class="bet-type-btn" data-type="ou" style="flex:1;padding:7px 4px;border-radius:7px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">O/U</button>
+          <button onclick="selectBetType('parlay')" class="bet-type-btn" data-type="parlay" style="flex:1;padding:7px 4px;border-radius:7px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">PARLAY</button>
+        </div>
+
+        <!-- ML / Spread fields -->
+        <div id="bet-teams-fields">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <div style="flex:1">
+              <label class="field-label">TEAM YOU BET</label>
+              <input id="bet-team" type="text" placeholder="e.g. Duke" class="field-input" style="width:100%"/>
+            </div>
+            <div style="flex:1">
+              <label class="field-label">OPPONENT</label>
+              <input id="bet-opponent" type="text" placeholder="e.g. UNC" class="field-input" style="width:100%"/>
+            </div>
+          </div>
+          <div id="spread-field" style="display:none;margin-bottom:10px">
+            <label class="field-label">SPREAD (e.g. -3.5)</label>
+            <input id="bet-spread" type="number" step="0.5" placeholder="-3.5" class="field-input" style="width:100%"/>
+          </div>
+          <div id="ou-fields" style="display:none;margin-bottom:10px">
+            <div style="display:flex;gap:8px">
+              <div style="flex:1">
+                <label class="field-label">TOTAL LINE</label>
+                <input id="bet-total" type="number" step="0.5" placeholder="152.5" class="field-input" style="width:100%"/>
+              </div>
+              <div style="flex:1">
+                <label class="field-label">OVER or UNDER</label>
+                <select id="bet-ou-side" class="field-input" style="width:100%;background:#080c17;color:#fff">
+                  <option value="over">Over</option>
+                  <option value="under">Under</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Parlay description -->
+        <div id="parlay-desc-field" style="display:none;margin-bottom:10px">
+          <label class="field-label">PARLAY DESCRIPTION</label>
+          <input id="bet-parlay-desc" type="text" placeholder="e.g. Duke ML + Kansas -3.5 + Over 148" class="field-input" style="width:100%"/>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="flex:1">
+            <label class="field-label">GAME DATE & TIME</label>
+            <input id="bet-gametime" type="datetime-local" class="field-input" style="width:100%"/>
+          </div>
+          <div style="flex:1">
+            <label class="field-label">ODDS (American)</label>
+            <input id="bet-odds" type="number" placeholder="-110" class="field-input" style="width:100%"/>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <div style="flex:1">
+            <label class="field-label">WAGER ($)</label>
+            <input id="bet-wager" type="number" placeholder="50" class="field-input" style="width:100%"/>
+          </div>
+          <div style="flex:1">
+            <label class="field-label">TO WIN ($)</label>
+            <div id="bet-to-win" style="background:#080c17;border:1px solid #1e2e40;border-radius:8px;padding:9px 10px;font-size:14px;color:#38bdf8;font-weight:700">—</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <button onclick="savePendingBet()" style="flex:2;padding:11px;background:#f59e0b;border:none;border-radius:10px;color:#080c17;font-size:13px;font-weight:700;font-family:inherit">SAVE BET</button>
+          <button onclick="hideAddBetForm()" style="flex:1;padding:11px;background:transparent;border:1px solid #2a3a4a;border-radius:10px;color:#7a8fa6;font-size:13px;font-family:inherit">CANCEL</button>
+        </div>
+      </div>
+
+      <!-- Pending Bets List -->
+      <div id="pending-bets-list"></div>
+      <div id="pending-empty" class="empty" style="display:none">No pending bets.<br/>Tap + ADD PENDING BET to track one.</div>
+    </div>
+
     <!-- SLIP -->
+
     <div id="tab-slip" class="tab-content" style="display:none">
       <div id="slip-empty" class="empty">Tap any odds button on the<br/>Odds tab to build your parlay.</div>
       <div id="slip-legs"></div>
@@ -410,7 +562,9 @@ function initApp(){
   updateSingle();
   updateParlay();
   renderHistory();
-  if(API_KEY) fetchOdds();
+  renderPendingBets();
+  updateBetsBadge();
+  if(API_KEY){ fetchOdds(); checkPendingBets(); generatePicks(); }
   else renderOddsError('add_key');
   switchTab('odds');
 }
@@ -436,6 +590,7 @@ async function fetchOdds(){
     var res=await fetch(url);
     if(!res.ok){var e=await res.json().catch(function(){return{};});throw new Error(e.message||'HTTP '+res.status);}
     var data=await res.json();
+    window.lastGamesData = data; // cache for picks engine
     document.getElementById('odds-loading').style.display='none';
     if(!data.length){
       document.getElementById('odds-list').innerHTML='<div class="empty">No NCAA games currently available.<br/><span style="font-size:11px">Check back closer to tournament time,<br/>or use IMPORT to paste odds manually.</span></div>';
@@ -909,6 +1064,523 @@ function resetTeamStats(name){
   saveTeamStats();
   document.getElementById('edit-form').innerHTML='<div style="color:#f59e0b;padding:10px;font-size:13px">✓ Reset to default stats for '+name+'</div>';
 }
+
+function resetTeamStats(name){
+  delete teamStats[name];
+  saveTeamStats();
+  document.getElementById('edit-form').innerHTML='<div style="color:#f59e0b;padding:10px;font-size:13px">✓ Reset to default stats for '+name+'</div>';
+}
+
+// ══ REFRESH ALL ══
+async function refreshAll(){
+  var btn=document.getElementById('refresh-btn');
+  btn.disabled=true; btn.textContent='⟳ LOADING';
+  await fetchOdds();
+  await checkPendingBets();
+  await generatePicks();
+  btn.disabled=false; btn.textContent='↻ REFRESH';
+}
+
+// ══ PENDING BETS ══
+var pendingBets=JSON.parse(localStorage.getItem('pendingBets')||'[]');
+var currentBetType='ml';
+function savePendingBetsStore(){localStorage.setItem('pendingBets',JSON.stringify(pendingBets));}
+function updateBetsBadge(){
+  var b=document.getElementById('bets-badge');
+  if(pendingBets.length){b.style.display='block';b.textContent=pendingBets.length;}
+  else b.style.display='none';
+}
+function showAddBetForm(){
+  document.getElementById('add-bet-form').style.display='block';
+  document.getElementById('add-bet-btn').style.display='none';
+  var now=new Date(); now.setMinutes(0,0,0);
+  document.getElementById('bet-gametime').value=now.toISOString().slice(0,16);
+  document.getElementById('bet-odds').oninput=updateToWin;
+  document.getElementById('bet-wager').oninput=updateToWin;
+}
+function hideAddBetForm(){
+  document.getElementById('add-bet-form').style.display='none';
+  document.getElementById('add-bet-btn').style.display='block';
+  clearBetForm();
+}
+function clearBetForm(){
+  ['bet-team','bet-opponent','bet-spread','bet-total','bet-parlay-desc','bet-odds','bet-wager'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('bet-to-win').textContent='—';
+  selectBetType('ml');
+}
+function selectBetType(type){
+  currentBetType=type;
+  document.querySelectorAll('.bet-type-btn').forEach(function(b){
+    var a=b.dataset.type===type;
+    b.style.border=a?'1px solid #f59e0b':'1px solid #2a3a4a';
+    b.style.background=a?'rgba(245,158,11,0.2)':'transparent';
+    b.style.color=a?'#f59e0b':'#7a8fa6';
+  });
+  document.getElementById('bet-teams-fields').style.display=type==='parlay'?'none':'block';
+  document.getElementById('parlay-desc-field').style.display=type==='parlay'?'block':'none';
+  document.getElementById('spread-field').style.display=type==='spread'?'block':'none';
+  document.getElementById('ou-fields').style.display=type==='ou'?'block':'none';
+}
+function updateToWin(){
+  var odds=parseInt(document.getElementById('bet-odds').value)||0;
+  var wager=parseFloat(document.getElementById('bet-wager').value)||0;
+  if(!odds||!wager){document.getElementById('bet-to-win').textContent='—';return;}
+  document.getElementById('bet-to-win').textContent='+$'+(wager*(aToDec(odds)-1)).toFixed(2);
+}
+function savePendingBet(){
+  var odds=parseInt(document.getElementById('bet-odds').value)||0;
+  var wager=parseFloat(document.getElementById('bet-wager').value)||0;
+  var gametime=document.getElementById('bet-gametime').value;
+  if(!odds||!wager||!gametime){alert('Please fill in odds, wager, and game time.');return;}
+  var bet={id:Date.now(),type:currentBetType,odds:odds,wager:wager,gametime:gametime,status:'pending',created:new Date().toISOString()};
+  if(currentBetType==='parlay'){
+    var desc=document.getElementById('bet-parlay-desc').value.trim();
+    if(!desc){alert('Please enter a parlay description.');return;}
+    bet.desc=desc; bet.label='Parlay: '+desc;
+  } else {
+    var team=document.getElementById('bet-team').value.trim();
+    var opp=document.getElementById('bet-opponent').value.trim();
+    if(!team||!opp){alert('Please enter both teams.');return;}
+    bet.team=team; bet.opponent=opp;
+    if(currentBetType==='ml') bet.label=team+' ML vs '+opp;
+    else if(currentBetType==='spread'){var sp=parseFloat(document.getElementById('bet-spread').value)||0;bet.spread=sp;bet.label=team+' '+fmt(sp)+' vs '+opp;}
+    else if(currentBetType==='ou'){var tot=parseFloat(document.getElementById('bet-total').value)||0;var side=document.getElementById('bet-ou-side').value;bet.total=tot;bet.ouSide=side;bet.label=(side==='over'?'Over ':'Under ')+tot+' ('+team+' vs '+opp+')';}
+  }
+  pendingBets.unshift(bet);
+  savePendingBetsStore(); updateBetsBadge(); renderPendingBets(); hideAddBetForm();
+}
+function deletePendingBet(id){
+  pendingBets=pendingBets.filter(function(b){return b.id!==id;});
+  savePendingBetsStore(); updateBetsBadge(); renderPendingBets();
+}
+function manualResolveBet(id,result){
+  var bet=pendingBets.find(function(b){return b.id===id;});
+  if(bet) resolveBet(bet,result);
+}
+function resolveBet(bet,result){
+  var payout=result==='Win'?parseFloat((bet.wager*aToDec(bet.odds)).toFixed(2)):result==='Push'?bet.wager:0;
+  var gameDate=new Date(bet.gametime).toLocaleDateString([],{month:'short',day:'numeric'});
+  historyData.unshift({id:Date.now(),desc:bet.label+' ('+fmt(bet.odds)+')',wager:bet.wager,result:result,payout:payout,date:gameDate});
+  saveHistory();
+  pendingBets=pendingBets.filter(function(b){return b.id!==bet.id;});
+  savePendingBetsStore(); updateBetsBadge(); renderPendingBets(); renderHistory();
+}
+function renderPendingBets(){
+  var listEl=document.getElementById('pending-bets-list');
+  var emptyEl=document.getElementById('pending-empty');
+  if(!listEl) return;
+  if(!pendingBets.length){listEl.innerHTML='';emptyEl.style.display='block';return;}
+  emptyEl.style.display='none';
+  var now=new Date();
+  listEl.innerHTML=pendingBets.map(function(b){
+    var gameTime=new Date(b.gametime);
+    var isPast=gameTime<now;
+    var timeStr=gameTime.toLocaleDateString([],{month:'short',day:'numeric'})+' '+gameTime.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    var profit=(b.wager*(aToDec(b.odds)-1)).toFixed(2);
+    var statusColor=isPast?'#f59e0b':'#38bdf8';
+    var statusLabel=isPast?'⏱ AWAITING RESULT':'🕐 UPCOMING';
+    return '<div style="background:#111825;border:1px solid '+(isPast?'#f59e0b33':'#1a2a3a')+';border-left:3px solid '+(isPast?'#f59e0b':'#38bdf8')+';border-radius:12px;padding:14px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:9px;color:'+statusColor+';font-weight:700;letter-spacing:1px">'+statusLabel+'</span><span style="font-size:10px;color:#7a8fa6">'+timeStr+'</span></div>'
+      +'<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">'+b.label+'</div>'
+      +'<div style="font-size:11px;color:#7a8fa6;margin-bottom:10px">Odds: <span style="color:'+(b.odds>0?'#38bdf8':'#c084fc')+';font-weight:700">'+fmt(b.odds)+'</span> · Wager: <span style="color:#fff;font-weight:600">$'+b.wager+'</span> · To Win: <span style="color:#38bdf8;font-weight:700">+$'+profit+'</span></div>'
+      +(isPast
+        ?'<div style="display:flex;gap:6px"><button onclick="manualResolveBet('+b.id+',\'Win\')" style="flex:1;padding:8px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;border-radius:8px;color:#38bdf8;font-size:11px;font-weight:700;font-family:inherit">✓ WIN</button><button onclick="manualResolveBet('+b.id+',\'Loss\')" style="flex:1;padding:8px;background:rgba(249,115,22,0.15);border:1px solid #f97316;border-radius:8px;color:#f97316;font-size:11px;font-weight:700;font-family:inherit">✗ LOSS</button><button onclick="manualResolveBet('+b.id+',\'Push\')" style="flex:1;padding:8px;background:rgba(161,161,170,0.1);border:1px solid #52525b;border-radius:8px;color:#a1a1aa;font-size:11px;font-weight:700;font-family:inherit">↔ PUSH</button><button onclick="deletePendingBet('+b.id+')" style="padding:8px 10px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">🗑</button></div>'
+        :'<button onclick="deletePendingBet('+b.id+')" style="padding:7px 14px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">Remove</button>'
+      )+'</div>';
+  }).join('');
+}
+async function checkPendingBets(){
+  if(!API_KEY||!pendingBets.length) return;
+  try{
+    var url='https://api.the-odds-api.com/v4/sports/basketball_ncaab/scores?daysFrom=3&apiKey='+API_KEY;
+    var res=await fetch(url); if(!res.ok) return;
+    var scores=await res.json();
+    var resolved=0;
+    pendingBets.slice().forEach(function(bet){
+      if(bet.type==='parlay') return;
+      var game=scores.find(function(g){
+        return g.completed&&(g.home_team.toLowerCase().indexOf(bet.team.toLowerCase())>-1||g.away_team.toLowerCase().indexOf(bet.team.toLowerCase())>-1)&&(g.home_team.toLowerCase().indexOf(bet.opponent.toLowerCase())>-1||g.away_team.toLowerCase().indexOf(bet.opponent.toLowerCase())>-1);
+      });
+      if(!game||!game.scores) return;
+      var getScore=function(name){var s=game.scores.find(function(s){return s.name===name;});return s?parseInt(s.score):0;};
+      var homeScore=getScore(game.home_team),awayScore=getScore(game.away_team);
+      var isHome=game.home_team.toLowerCase().indexOf(bet.team.toLowerCase())>-1;
+      var betScore=isHome?homeScore:awayScore,oppScore=isHome?awayScore:homeScore;
+      var total=homeScore+awayScore;
+      var result=null;
+      if(bet.type==='ml') result=betScore>oppScore?'Win':'Loss';
+      else if(bet.type==='spread'){var diff=betScore-oppScore;result=diff===-bet.spread?'Push':diff>-bet.spread?'Win':'Loss';}
+      else if(bet.type==='ou'){if(bet.ouSide==='over')result=total>bet.total?'Win':total===bet.total?'Push':'Loss';else result=total<bet.total?'Win':total===bet.total?'Push':'Loss';}
+      if(result){resolveBet(bet,result);resolved++;}
+    });
+    if(resolved>0) showToast(resolved+' bet'+(resolved>1?'s':'')+' auto-resolved! Check LOG tab.');
+  }catch(e){console.log('Score check:',e);}
+}
+function showToast(msg){
+  var t=document.createElement('div');
+  t.textContent=msg;
+  t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#f59e0b;color:#080c17;padding:10px 18px;border-radius:20px;font-size:12px;font-weight:700;z-index:999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
+  document.body.appendChild(t);
+  setTimeout(function(){t.remove();},4000);
+}
+
+// ══ TODAY'S BEST PICKS ENGINE ══
+var allPicks = [];
+var currentPickFilter = 'all';
+var suggestedParlay = [];
+
+// Called on init and refresh
+async function generatePicks(){
+  document.getElementById('picks-loading').style.display='block';
+  document.getElementById('picks-list').innerHTML='';
+  document.getElementById('picks-empty').style.display='none';
+  document.getElementById('picks-parlay-box').style.display='none';
+
+  // Use cached games from last odds fetch, or fetch fresh
+  if(!window.lastGamesData || !window.lastGamesData.length){
+    if(!API_KEY){ renderPicksNoData(); return; }
+    try{
+      var url='https://api.the-odds-api.com/v4/sports/basketball_ncaab/odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey='+API_KEY;
+      var res=await fetch(url);
+      if(!res.ok) throw new Error('API error');
+      window.lastGamesData = await res.json();
+    } catch(e){ renderPicksNoData(); return; }
+  }
+
+  var games = window.lastGamesData.map(transformGame).filter(Boolean);
+  document.getElementById('picks-loading').style.display='none';
+
+  if(!games.length){ renderPicksNoData(); return; }
+
+  allPicks = [];
+
+  games.forEach(function(g){
+    var s1 = getTeamStats(g.home);
+    var s2 = getTeamStats(g.away);
+
+    // ── 1. MONEYLINE VALUE PICK ──
+    if(s1 && s2){
+      var net1 = s1.ortg - s1.drtg;
+      var net2 = s2.ortg - s2.drtg;
+      var netDiff = net1 - net2; // positive = home team stronger
+      var statWinProb = Math.min(Math.max(50 + netDiff*3, 5), 95);
+      var homeImplied = 1/aToDec(g.homeML)*100;
+      var awayImplied = 1/aToDec(g.awayML)*100;
+      var homeEdge = statWinProb - homeImplied;
+      var awayEdge = (100-statWinProb) - awayImplied;
+      var bestML = homeEdge > awayEdge ? {team:g.home, odds:g.homeML, edge:homeEdge, prob:statWinProb} : {team:g.away, odds:g.awayML, edge:awayEdge, prob:100-statWinProb};
+      if(Math.abs(bestML.edge) > 2){
+        var stars = edgeToStars(Math.abs(bestML.edge), 3, 6, 10);
+        allPicks.push({
+          type:'ml', typeLabel:'MONEYLINE', game:g,
+          pick:bestML.team+' ML', odds:bestML.odds,
+          stars:stars,
+          edge:bestML.edge.toFixed(1),
+          reason:bestML.team+' stats imply '+bestML.prob.toFixed(0)+'% win prob vs '+homeImplied.toFixed(0)+'% market — '+Math.abs(bestML.edge).toFixed(1)+'% edge',
+          sortScore: Math.abs(bestML.edge) * stars
+        });
+      }
+
+      // ── 2. SPREAD VALUE PICK ──
+      if(g.spread != null){
+        // Estimate expected margin from net rating diff (each 1pt net ≈ 0.4pt margin per game)
+        var expectedMargin = netDiff * 0.4;
+        var spreadLine = -g.spread; // negative spread means home favored by that many
+        var spreadEdge = expectedMargin - spreadLine;
+        var spreadPick, spreadOdds, spreadReason;
+        if(spreadEdge > 1.5){
+          spreadPick = g.home+' '+fmt(g.spread);
+          spreadOdds = g.spreadOdds;
+          spreadReason = 'Expected margin '+expectedMargin.toFixed(1)+' pts favors '+g.home+' covering '+fmt(g.spread);
+        } else if(spreadEdge < -1.5){
+          spreadPick = g.away+' +'+(Math.abs(g.spread));
+          spreadOdds = g.spreadOdds;
+          spreadReason = 'Stats suggest '+g.away+' keeps it closer than the '+Math.abs(g.spread)+' pt spread';
+        }
+        if(spreadPick){
+          var spreadStars = edgeToStars(Math.abs(spreadEdge), 2, 4, 7);
+          allPicks.push({
+            type:'spread', typeLabel:'SPREAD', game:g,
+            pick:spreadPick, odds:spreadOdds,
+            stars:spreadStars,
+            edge:spreadEdge.toFixed(1),
+            reason:spreadReason,
+            sortScore: Math.abs(spreadEdge) * spreadStars
+          });
+        }
+      }
+
+      // ── 3. OVER/UNDER PICK ──
+      if(g.total != null){
+        // Expected total = avg of both teams' pace-adjusted scoring
+        var avgPace = (s1.pace + s2.pace) / 2;
+        var basePace = 70; // NCAA average possessions per 40
+        var paceAdj = avgPace / basePace;
+        // Each team scores roughly ortg/100 * possessions points
+        var expHomeScore = (s1.ortg / 100) * (avgPace) * paceAdj * 0.92;
+        var expAwayScore = (s2.ortg / 100) * (avgPace) * paceAdj * 0.92;
+        // Adjust for opponent defense
+        var expHomeFinal = ((s1.ortg + (100 - s2.drtg)) / 2) * paceAdj * 0.68;
+        var expAwayFinal = ((s2.ortg + (100 - s1.drtg)) / 2) * paceAdj * 0.68;
+        var projTotal = expHomeFinal + expAwayFinal;
+        var ouEdge = projTotal - g.total;
+        var ouPick, ouReason;
+        if(ouEdge > 3){
+          ouPick = 'Over '+g.total; ouReason = 'Projected total '+projTotal.toFixed(1)+' pts — both teams pace well above line ('+g.total+')';
+        } else if(ouEdge < -3){
+          ouPick = 'Under '+g.total; ouReason = 'Projected total '+projTotal.toFixed(1)+' pts — defensive matchup suggests game stays under '+g.total;
+        }
+        if(ouPick){
+          var ouStars = edgeToStars(Math.abs(ouEdge), 3, 6, 10);
+          allPicks.push({
+            type:'ou', typeLabel:'OVER/UNDER', game:g,
+            pick:ouPick, odds:-110,
+            stars:ouStars,
+            edge:ouEdge.toFixed(1),
+            reason:ouReason,
+            sortScore: Math.abs(ouEdge) * ouStars
+          });
+        }
+      }
+
+      // ── 4. STATISTICAL MISMATCH (blowout potential) ──
+      var netGap = Math.abs(net1 - net2);
+      if(netGap > 8){
+        var strongTeam = net1 > net2 ? g.home : g.away;
+        var weakTeam = net1 > net2 ? g.away : g.home;
+        var strongNet = Math.max(net1,net2).toFixed(1);
+        var weakNet = Math.min(net1,net2).toFixed(1);
+        var mismatchStars = edgeToStars(netGap, 8, 12, 18);
+        allPicks.push({
+          type:'mismatch', typeLabel:'MISMATCH', game:g,
+          pick:strongTeam+' ML / Cover',
+          odds: net1>net2 ? g.homeML : g.awayML,
+          stars:mismatchStars,
+          edge:netGap.toFixed(1),
+          reason:strongTeam+' Net Rtg +'+strongNet+' vs '+weakTeam+' '+weakNet+' — '+netGap.toFixed(0)+' pt gap signals potential blowout',
+          sortScore: netGap * mismatchStars
+        });
+      }
+    }
+  });
+
+  // ── 5. BEST PARLAY COMBINATION ──
+  // Take top 2-3 highest-confidence picks (4+ stars, positive edge)
+  var parlayCandidates = allPicks
+    .filter(function(p){ return p.stars>=3 && parseFloat(p.edge)>0; })
+    .sort(function(a,b){ return b.sortScore-a.sortScore; })
+    .slice(0,3);
+
+  if(parlayCandidates.length >= 2){
+    var parlayOdds = calcParlay(parlayCandidates.map(function(p){return {odds:p.odds};}));
+    suggestedParlay = parlayCandidates;
+    allPicks.push({
+      type:'parlay', typeLabel:'PARLAY',
+      game: parlayCandidates[0].game,
+      pick: parlayCandidates.length+'-Leg Best Picks Parlay',
+      odds: parlayOdds.american,
+      stars: Math.min(parlayCandidates[0].stars, 3),
+      edge: parlayCandidates.reduce(function(a,p){return a+parseFloat(p.edge);},0).toFixed(1),
+      reason: parlayCandidates.map(function(p){return p.pick;}).join(' + ')+' — combined '+parlayOdds.prob+'% implied prob',
+      sortScore: 999, // always show parlay
+      isParlay: true,
+      legs: parlayCandidates
+    });
+  }
+
+  // Sort all picks by score descending
+  allPicks.sort(function(a,b){ return b.sortScore - a.sortScore; });
+
+  renderPicks();
+  renderSuggestedParlay();
+  generateClaudeSummary();
+}
+
+function edgeToStars(val, one, two, three){
+  if(val >= three) return 5;
+  if(val >= two) return 4;
+  if(val >= one) return 3;
+  return 2;
+}
+
+function stars(n){
+  var s='';
+  for(var i=0;i<5;i++) s+='<span style="color:'+(i<n?'#f59e0b':'#2a3a4a')+'">★</span>';
+  return s;
+}
+
+function filterPicks(filter){
+  currentPickFilter = filter;
+  document.querySelectorAll('.picks-filter').forEach(function(b){
+    var a=b.dataset.filter===filter;
+    b.style.borderColor=a?'#f59e0b':'#2a3a4a';
+    b.style.background=a?'rgba(245,158,11,0.15)':'transparent';
+    b.style.color=a?'#f59e0b':'#7a8fa6';
+  });
+  renderPicks();
+}
+
+function renderPicks(){
+  var filtered = currentPickFilter==='all' ? allPicks : allPicks.filter(function(p){return p.type===currentPickFilter;});
+  var el = document.getElementById('picks-list');
+  var emptyEl = document.getElementById('picks-empty');
+  if(!filtered.length){ el.innerHTML=''; emptyEl.style.display='block'; return; }
+  emptyEl.style.display='none';
+
+  var typeColors = {ml:'#38bdf8', spread:'#c084fc', ou:'#34d399', mismatch:'#f97316', parlay:'#f59e0b'};
+
+  el.innerHTML = filtered.map(function(p, i){
+    var col = typeColors[p.type]||'#f59e0b';
+    var edgeNum = parseFloat(p.edge);
+    var edgeStr = edgeNum > 0 ? '+'+p.edge+'%' : p.edge+'%';
+    var isValueBet = edgeNum > 0 && p.type !== 'mismatch' && p.type !== 'parlay';
+
+    return '<div style="background:#111825;border:1px solid #1a2a3a;border-left:3px solid '+col+';border-radius:12px;padding:14px;margin-bottom:10px">'
+      // Rank + type badge
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+      +'<span style="font-size:10px;color:#7a8fa6;font-weight:700">#'+(i+1)+'</span>'
+      +'<span style="font-size:9px;color:'+col+';font-weight:700;letter-spacing:1px;background:'+col+'22;padding:3px 8px;border-radius:10px">'+p.typeLabel+'</span>'
+      +(isValueBet?'<span style="font-size:9px;color:#f59e0b;font-weight:700;letter-spacing:1px;background:rgba(245,158,11,0.15);padding:3px 8px;border-radius:10px">VALUE</span>':'')
+      +'</div>'
+      +'<div style="font-size:13px">'+stars(p.stars)+'</div>'
+      +'</div>'
+      // Game
+      +'<div style="font-size:10px;color:#7a8fa6;margin-bottom:4px">'+p.game.away+' @ '+p.game.home+(p.game.time?' · '+p.game.time:'')+'</div>'
+      // Pick
+      +'<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px">'+p.pick
+      +'<span style="font-size:13px;font-weight:700;color:'+(p.odds>0?'#38bdf8':'#c084fc')+';margin-left:8px">'+fmt(p.odds)+'</span></div>'
+      // Reason
+      +'<div style="font-size:11px;color:#94a3b8;margin-bottom:8px;line-height:1.5">'+p.reason+'</div>'
+      // Edge bar
+      +(isValueBet?'<div style="display:flex;align-items:center;gap:8px">'
+        +'<div style="font-size:9px;color:#7a8fa6;width:60px">EDGE</div>'
+        +'<div style="flex:1;height:4px;background:#1a2a3a;border-radius:2px"><div style="height:4px;border-radius:2px;background:'+col+';width:'+Math.min(Math.abs(edgeNum)*8,100)+'%"></div></div>'
+        +'<div style="font-size:11px;font-weight:700;color:'+col+'">'+edgeStr+'</div>'
+        +'</div>':'')
+      // Add to slip button for non-parlay
+      +(!p.isParlay?'<button onclick="addPickToSlip(\''+escQ(JSON.stringify({key:\'pick-\'+p.game.id+\'-\'+p.type, label:escQ(p.pick), odds:p.odds}))+\'\')" '
+        +'style="margin-top:8px;padding:6px 12px;background:transparent;border:1px solid '+col+'44;border-radius:7px;color:'+col+';font-size:10px;font-weight:700;font-family:inherit">+ ADD TO SLIP</button>':'')
+      +'</div>';
+  }).join('');
+}
+
+function addPickToSlip(jsonStr){
+  try{
+    var p = JSON.parse(jsonStr);
+    if(!betSlip.find(function(b){return b.key===p.key;})){
+      betSlip.push({key:p.key, label:p.label, odds:p.odds});
+      updateBadge();
+      renderSlip();
+      showToast(p.label+' added to slip!');
+    }
+  } catch(e){}
+}
+
+function renderSuggestedParlay(){
+  if(!suggestedParlay.length) return;
+  var p = calcParlay(suggestedParlay.map(function(l){return{odds:l.odds};}));
+  document.getElementById('picks-parlay-box').style.display='block';
+  document.getElementById('picks-parlay-legs').innerHTML = suggestedParlay.map(function(l){
+    return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #151f2e">'
+      +'<span style="font-size:12px;color:#e0e6f0">'+l.pick+'</span>'
+      +'<span style="font-size:12px;font-weight:700;color:'+(l.odds>0?'#38bdf8':'#c084fc')+'">'+fmt(l.odds)+'</span>'
+      +'</div>';
+  }).join('');
+  document.getElementById('picks-parlay-summary').innerHTML =
+    '<div style="margin-top:10px;display:flex;justify-content:space-between">'
+    +'<span style="font-size:11px;color:#7a8fa6">'+suggestedParlay.length+'-leg combined odds</span>'
+    +'<span style="font-size:14px;font-weight:700;color:#f59e0b">'+fmt(p.american)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;margin-top:4px">'
+    +'<span style="font-size:11px;color:#7a8fa6">Implied probability</span>'
+    +'<span style="font-size:12px;color:#fff">'+p.prob+'%</span></div>';
+}
+
+function addParlayToSlip(){
+  suggestedParlay.forEach(function(l){
+    var key='picks-parlay-'+l.game.id+'-'+l.type;
+    if(!betSlip.find(function(b){return b.key===key;})){
+      betSlip.push({key:key, label:l.pick, odds:l.odds});
+    }
+  });
+  updateBadge(); renderSlip();
+  showToast('Parlay legs added to slip!');
+  switchTab('slip');
+}
+
+function renderPicksNoData(){
+  document.getElementById('picks-loading').style.display='none';
+  document.getElementById('picks-empty').style.display='block';
+}
+
+// ══ CLAUDE AI SUMMARY ══
+async function generateClaudeSummary(){
+  if(!allPicks.length){ alert('Generate picks first by tapping ↻ REFRESH'); return; }
+
+  document.getElementById('claude-summary-box').style.display='none';
+  document.getElementById('claude-summary-loading').style.display='block';
+
+  // Animate dots
+  var dotFrames=['●','● ●','● ● ●'], dotIdx=0;
+  var dotTimer=setInterval(function(){
+    var el=document.getElementById('claude-dots');
+    if(el){ el.textContent=dotFrames[dotIdx%3]; dotIdx++; }
+  }, 500);
+
+  // Build context for Claude
+  var topPicks = allPicks.filter(function(p){return !p.isParlay;}).slice(0,6);
+  var picksContext = topPicks.map(function(p,i){
+    return (i+1)+'. '+p.typeLabel+': '+p.pick+' ('+fmt(p.odds)+') — '+p.reason+' ['+p.stars+' stars, edge: '+p.edge+'%]';
+  }).join('\n');
+
+  var parlayPick = allPicks.find(function(p){return p.isParlay;});
+  var parlayContext = parlayPick ? '\nSuggested parlay: '+parlayPick.reason : '';
+
+  var prompt = 'You are a sharp NCAA basketball betting analyst. Based on the following statistical analysis of today\'s games, write a concise betting summary for a recreational bettor. Be direct, confident, and highlight the 2-3 best opportunities. Use plain language. Keep it under 200 words. Do not add disclaimers about gambling.\n\nToday\'s picks analysis:\n'+picksContext+parlayContext+'\n\nWrite a narrative summary covering: the single best bet of the day, any strong value spots, and a parlay recommendation if applicable. Use a confident but measured tone.';
+
+  try{
+    var response = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user', content:prompt}]
+      })
+    });
+
+    clearInterval(dotTimer);
+
+    if(!response.ok){
+      var err=await response.json().catch(function(){return{};});
+      throw new Error(err.error&&err.error.message?err.error.message:'API error '+response.status);
+    }
+
+    var data=await response.json();
+    var text=data.content&&data.content[0]&&data.content[0].text?data.content[0].text:'No response received.';
+
+    document.getElementById('claude-summary-loading').style.display='none';
+    document.getElementById('claude-summary-box').style.display='block';
+    document.getElementById('claude-summary-content').innerHTML = formatClaudeText(text);
+    document.getElementById('claude-summary-time').textContent='Generated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+
+  } catch(e){
+    clearInterval(dotTimer);
+    document.getElementById('claude-summary-loading').style.display='none';
+    document.getElementById('claude-summary-box').style.display='block';
+    document.getElementById('claude-summary-content').innerHTML='<span style="color:#f97316">Error: '+e.message+'</span>';
+  }
+}
+
+function formatClaudeText(text){
+  // Bold any team names in **team** format, convert newlines to breaks
+  return text
+    .replace(/\*\*(.*?)\*\*/g,'<strong style="color:#fff">$1</strong>')
+    .replace(/\n\n/g,'<br/><br/>')
+    .replace(/\n/g,'<br/>');
+}
+
+
 
 function parseOdds(){
   var text=document.getElementById('paste-area').value;
