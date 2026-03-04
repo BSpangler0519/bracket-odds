@@ -201,6 +201,18 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
     <div id="tab-odds" class="tab-content">
       <div id="odds-error" style="display:none"></div>
       <div id="odds-loading" class="empty" style="display:none">Fetching live odds…</div>
+
+      <!-- Filters -->
+      <div id="odds-filters" style="display:none;margin-bottom:12px">
+        <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">
+          <button class="odds-filter active-odds-filter" data-f="all" onclick="filterOdds('all')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #f59e0b;background:rgba(245,158,11,0.15);color:#f59e0b;font-size:10px;font-weight:700;font-family:inherit">ALL</button>
+          <button class="odds-filter" data-f="today" onclick="filterOdds('today')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">TODAY</button>
+          <button class="odds-filter" data-f="tournament" onclick="filterOdds('tournament')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">MARCH MADNESS</button>
+          <button class="odds-filter" data-f="ncaab" onclick="filterOdds('ncaab')" style="white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:10px;font-weight:700;font-family:inherit">REG SEASON</button>
+        </div>
+        <div id="odds-game-count" style="font-size:10px;color:#7a8fa6;margin-top:6px;padding-left:2px"></div>
+      </div>
+
       <div id="odds-list"></div>
     </div>
 
@@ -578,6 +590,42 @@ function switchTab(name){
 }
 
 // ══ ODDS API ══
+// ══ ODDS FILTER STATE ══
+var currentOddsFilter = 'all';
+var allGamesData = [];
+
+function filterOdds(f){
+  currentOddsFilter = f;
+  document.querySelectorAll('.odds-filter').forEach(function(b){
+    var a = b.dataset.f === f;
+    b.style.borderColor = a?'#f59e0b':'#2a3a4a';
+    b.style.background = a?'rgba(245,158,11,0.15)':'transparent';
+    b.style.color = a?'#f59e0b':'#7a8fa6';
+  });
+  renderFilteredGames();
+}
+
+function renderFilteredGames(){
+  var today = new Date(); today.setHours(0,0,0,0);
+  var tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+  var filtered = allGamesData.filter(function(g){
+    if(currentOddsFilter==='today'){
+      var gd=new Date(g.commence_time); gd.setHours(0,0,0,0);
+      return gd.getTime()===today.getTime();
+    }
+    if(currentOddsFilter==='tournament') return g.league==='tournament';
+    if(currentOddsFilter==='ncaab') return g.league==='ncaab';
+    return true;
+  });
+  var countEl=document.getElementById('odds-game-count');
+  if(countEl) countEl.textContent=filtered.length+' game'+(filtered.length!==1?'s':'')+' shown';
+  if(!filtered.length){
+    document.getElementById('odds-list').innerHTML='<div class="empty">No games match this filter.<br/><span style="font-size:11px">Try ALL to see everything available.</span></div>';
+    return;
+  }
+  renderGames(filtered);
+}
+
 async function fetchOdds(){
   if(!API_KEY){renderOddsError('add_key');return;}
   var btn=document.getElementById('refresh-btn');
@@ -585,18 +633,31 @@ async function fetchOdds(){
   document.getElementById('odds-loading').style.display='block';
   document.getElementById('odds-list').innerHTML='';
   document.getElementById('odds-error').style.display='none';
+  document.getElementById('odds-filters').style.display='none';
   try{
-    var url='https://api.the-odds-api.com/v4/sports/basketball_ncaab/odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey='+API_KEY;
-    var res=await fetch(url);
-    if(!res.ok){var e=await res.json().catch(function(){return{};});throw new Error(e.message||'HTTP '+res.status);}
-    var data=await res.json();
-    window.lastGamesData = data; // cache for picks engine
+    var params='odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey='+API_KEY;
+    var base='https://api.the-odds-api.com/v4/sports/';
+    var results=await Promise.allSettled([
+      fetch(base+'basketball_ncaab/'+params).then(function(r){return r.ok?r.json():[];}),
+      fetch(base+'basketball_ncaab_championship/'+params).then(function(r){return r.ok?r.json():[];})
+    ]);
+    var ncaabData=(results[0].status==='fulfilled'&&Array.isArray(results[0].value))?results[0].value:[];
+    var tourneyData=(results[1].status==='fulfilled'&&Array.isArray(results[1].value))?results[1].value:[];
+    ncaabData.forEach(function(g){g._league='ncaab';});
+    tourneyData.forEach(function(g){g._league='tournament';});
+    var combined=ncaabData.concat(tourneyData);
+    combined.sort(function(a,b){return new Date(a.commence_time)-new Date(b.commence_time);});
+    window.lastGamesData=combined;
+    allGamesData=combined.map(transformGame).filter(Boolean);
     document.getElementById('odds-loading').style.display='none';
-    if(!data.length){
-      document.getElementById('odds-list').innerHTML='<div class="empty">No NCAA games currently available.<br/><span style="font-size:11px">Check back closer to tournament time,<br/>or use IMPORT to paste odds manually.</span></div>';
-    } else { renderGames(data); }
+    if(!allGamesData.length){
+      document.getElementById('odds-list').innerHTML='<div class="empty">No NCAA games with odds right now.<br/><span style="font-size:11px">Odds appear ~1 week before games.<br/>Use IMPORT to paste odds manually.</span></div>';
+    } else {
+      document.getElementById('odds-filters').style.display='block';
+      filterOdds(tourneyData.length>0?'tournament':'all');
+    }
     var now=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    document.getElementById('last-updated').textContent='Updated '+now;
+    document.getElementById('last-updated').textContent='Updated '+now+' · '+allGamesData.length+' games';
   }catch(e){
     document.getElementById('odds-loading').style.display='none';
     renderOddsError(e.message);
@@ -637,37 +698,40 @@ function transformGame(g){
     spreadOdds:homeSpread?homeSpread.price:-110,
     total:overTotal?overTotal.point:null,
     book:bk.title,
+    league:g._league||'ncaab',
+    isTournament:g._league==='tournament',
+    commence_time:g.commence_time,
     time:t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZoneName:'short'}),
-    date:t.toLocaleDateString([],{month:'short',day:'numeric'})
+    date:t.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})
   };
 }
 
 function escQ(s){ return s.replace(/'/g,"\\'"); }
 function shortName(t){ return t.split(' ').slice(-1)[0]; }
 
-function renderGames(data){
-  var games=data.map(transformGame).filter(Boolean);
+function renderGames(games){
   var html='';
   games.forEach(function(g){
     var fav=g.homeML<g.awayML?'home':'away';
     var hAct=isInSlip(g.id,'homeML'),aAct=isInSlip(g.id,'awayML');
     var spAct=isInSlip(g.id,'spread'),ouAct=isInSlip(g.id,'ou');
     var spLabel=g.spread!=null?shortName(g.home)+' '+fmt(g.spread):'N/A';
-    var totLabel=g.total!=null?''+g.total:'N/A';
+    var totLabel=g.total!=null?''+ g.total:'N/A';
+    var badge=g.isTournament?'<span style="font-size:8px;color:#f59e0b;background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.4);border-radius:6px;padding:2px 6px;margin-left:6px;font-weight:700;vertical-align:middle">TOURNEY</span>':'';
     html+='<div class="card">'
-      +'<div class="card-header"><span class="book">'+g.book+'</span><span class="time">'+g.date+' · '+g.time+'</span></div>'
+      +'<div class="card-header"><span class="book">'+g.book+badge+'</span><span class="time">'+g.date+' · '+g.time+'</span></div>'
       +'<div class="card-body">'
       +'<div class="team-row">'
       +'<div><div class="team-name'+(fav==='away'?' fav':'')+'">'+g.away+(fav==='away'?'<span class="fav-star">★</span>':'')+'</div><div class="implied">Implied '+implied(g.awayML)+'%</div></div>'
-      +'<button class="odds-btn '+(g.awayML>0?'dog':'fav-btn')+(aAct?' active':'')+'" onclick="toggleSlip(\''+g.id+'\',\'awayML\','+g.awayML+',\''+escQ(g.away)+' ML\',this)">'+fmt(g.awayML)+'</button>'
+      +'<button class="odds-btn '+(g.awayML>0?'dog':'fav-btn')+(aAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'awayML\','+g.awayML+',\''+ escQ(g.away)+' ML\',this)">'+fmt(g.awayML)+'</button>'
       +'</div>'
       +'<div class="team-row">'
       +'<div><div class="team-name'+(fav==='home'?' fav':'')+'">'+g.home+(fav==='home'?'<span class="fav-star">★</span>':'')+'</div><div class="implied">Implied '+implied(g.homeML)+'%</div></div>'
-      +'<button class="odds-btn '+(g.homeML>0?'dog':'fav-btn')+(hAct?' active':'')+'" onclick="toggleSlip(\''+g.id+'\',\'homeML\','+g.homeML+',\''+escQ(g.home)+' ML\',this)">'+fmt(g.homeML)+'</button>'
+      +'<button class="odds-btn '+(g.homeML>0?'dog':'fav-btn')+(hAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'homeML\','+g.homeML+',\''+ escQ(g.home)+' ML\',this)">'+fmt(g.homeML)+'</button>'
       +'</div>'
       +'<div class="sub-bets">'
-      +'<button class="sub-btn'+(spAct?' active':'')+'" onclick="toggleSlip(\''+g.id+'\',\'spread\','+g.spreadOdds+',\''+escQ(spLabel)+'\',this)"><div class="sub-label">SPREAD</div><div class="sub-val">'+spLabel+'</div><div class="sub-odds">'+fmt(g.spreadOdds)+'</div></button>'
-      +'<button class="sub-btn'+(ouAct?' active':'')+'" onclick="toggleSlip(\''+g.id+'\',\'ou\',-110,\'O/U '+totLabel+'\',this)"><div class="sub-label">TOTAL</div><div class="sub-val">'+totLabel+'</div><div class="sub-odds">O/U -110</div></button>'
+      +'<button class="sub-btn'+(spAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'spread\','+g.spreadOdds+',\''+ escQ(spLabel)+'\',this)"><div class="sub-label">SPREAD</div><div class="sub-val">'+spLabel+'</div><div class="sub-odds">'+fmt(g.spreadOdds)+'</div></button>'
+      +'<button class="sub-btn'+(ouAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'ou\',-110,\'O/U '+totLabel+'\',this)"><div class="sub-label">TOTAL</div><div class="sub-val">'+totLabel+'</div><div class="sub-odds">O/U -110</div></button>'
       +'</div></div></div>';
   });
   document.getElementById('odds-list').innerHTML=html;
