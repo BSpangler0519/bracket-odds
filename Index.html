@@ -160,13 +160,17 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
         <div class="step-text">Paste your key below and tap <strong>Save &amp; Launch</strong>.</div>
       </div>
       <div style="margin-top:14px">
-        <input class="api-input" id="api-key-input" type="text" placeholder="Paste your API key here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+        <label style="font-size:9px;color:#8aa0b8;letter-spacing:1px;display:block;margin-bottom:5px">THE ODDS API KEY (required for live odds)</label>
+        <input class="api-input" id="api-key-input" type="text" placeholder="Paste Odds API key here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="margin-bottom:10px"/>
+        <label style="font-size:9px;color:#818cf8;letter-spacing:1px;display:block;margin-bottom:5px">CLAUDE API KEY (optional — for AI summaries)</label>
+        <input class="api-input" id="claude-key-input" type="text" placeholder="Paste Claude API key here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="border-color:#818cf8;margin-bottom:10px"/>
+        <div style="font-size:10px;color:#4a5568;margin-bottom:12px;line-height:1.6">Get a Claude key at <a href="https://console.anthropic.com" target="_blank" style="color:#818cf8">console.anthropic.com</a> → API Keys. Free trial credits included.</div>
         <button class="save-btn" onclick="saveApiKey()">Save &amp; Launch App →</button>
         <button class="skip-btn" onclick="skipSetup()">Skip for now (use manual import only)</button>
       </div>
     </div>
     <div style="font-size:11px;color:#7a8fa6;text-align:center;line-height:1.8;padding:0 10px">
-      Your API key is stored only on this device.<br/>Never sent anywhere except the-odds-api.com.
+      Both keys are stored only on this device.<br/>Never shared with anyone.
     </div>
   </div>
 
@@ -540,11 +544,15 @@ function calcParlay(legs){
 }
 
 // ══ SETUP ══
+var CLAUDE_KEY = localStorage.getItem('claudeApiKey') || '';
+
 function saveApiKey(){
   var k=document.getElementById('api-key-input').value.trim();
-  if(!k){alert('Please paste your API key first.');return;}
+  if(!k){alert('Please paste your Odds API key first.');return;}
   API_KEY=k;
   localStorage.setItem('oddsApiKey',k);
+  var ck=document.getElementById('claude-key-input').value.trim();
+  if(ck){ CLAUDE_KEY=ck; localStorage.setItem('claudeApiKey',ck); }
   launchApp();
 }
 function skipSetup(){ launchApp(); }
@@ -553,6 +561,7 @@ function showSetup(){
   document.getElementById('header').style.display='none';
   document.getElementById('content').style.display='none';
   if(API_KEY) document.getElementById('api-key-input').value=API_KEY;
+  if(CLAUDE_KEY) document.getElementById('claude-key-input').value=CLAUDE_KEY;
 }
 function launchApp(){
   document.getElementById('setup-screen').style.display='none';
@@ -1189,10 +1198,14 @@ function updateToWin(){
   document.getElementById('bet-to-win').textContent='+$'+(wager*(aToDec(odds)-1)).toFixed(2);
 }
 function savePendingBet(){
-  var odds=parseInt(document.getElementById('bet-odds').value)||0;
-  var wager=parseFloat(document.getElementById('bet-wager').value)||0;
-  var gametime=document.getElementById('bet-gametime').value;
-  if(!odds||!wager||!gametime){alert('Please fill in odds, wager, and game time.');return;}
+  var oddsRaw=document.getElementById('bet-odds').value.trim();
+  var wagerRaw=document.getElementById('bet-wager').value.trim();
+  var gametime=document.getElementById('bet-gametime').value.trim();
+  var odds=parseInt(oddsRaw)||0;
+  var wager=parseFloat(wagerRaw)||0;
+  if(!oddsRaw||!wagerRaw||!gametime){alert('Please fill in odds, wager, and game time.');return;}
+  if(!odds){alert('Please enter a valid odds number (e.g. -110 or +150)');return;}
+  if(!wager){alert('Please enter a valid wager amount');return;}
   var bet={id:Date.now(),type:currentBetType,odds:odds,wager:wager,gametime:gametime,status:'pending',created:new Date().toISOString()};
   if(currentBetType==='parlay'){
     var desc=document.getElementById('bet-parlay-desc').value.trim();
@@ -1649,6 +1662,11 @@ function renderPicksNoData(){
 // ══ CLAUDE AI SUMMARY ══
 async function generateClaudeSummary(){
   if(!allPicks.length){ alert('Generate picks first by tapping ↻ REFRESH'); return; }
+  if(!CLAUDE_KEY){ 
+    document.getElementById('claude-summary-box').style.display='block';
+    document.getElementById('claude-summary-content').innerHTML='<span style="color:#f59e0b">No Claude API key set. Go to IMPORT → Change API Key to add your Claude key from <a href=\"https://console.anthropic.com\" target=\"_blank\" style=\"color:#818cf8\">console.anthropic.com</a>.</span>';
+    return;
+  }
 
   document.getElementById('claude-summary-box').style.display='none';
   document.getElementById('claude-summary-loading').style.display='block';
@@ -1674,7 +1692,7 @@ async function generateClaudeSummary(){
   try{
     var response = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
-      headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json','x-api-key':CLAUDE_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:1000,
