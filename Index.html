@@ -1,13 +1,449 @@
-# 1. Install Node.js from nodejs.org, then:
-npx create-expo-app BracketOdds --template blank
-cd BracketOdds
+import { useState, useEffect, useCallback } from "react";
 
-# 2. Replace App.js with the component above
+// ─── Replace with your key from the-odds-api.com (free tier) ───
+const ODDS_API_KEY = "YOUR_API_KEY_HERE";
+const ODDS_URL = `https://api.the-odds-api.com/v4/sports/basketball_ncaab/odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${ODDS_API_KEY}`;
 
-# 3. Test in your browser instantly
-npx expo start --web
+// ─── Helpers ────────────────────────────────────────────────────
+function americanToDecimal(odds) {
+  return odds > 0 ? odds / 100 + 1 : 100 / Math.abs(odds) + 1;
+}
+function impliedProb(odds) {
+  return ((1 / americanToDecimal(odds)) * 100).toFixed(1);
+}
+function fmt(odds) {
+  return odds > 0 ? `+${odds}` : `${odds}`;
+}
+function calcParlay(legs) {
+  if (!legs.length) return { dec: 1, prob: "0.0", american: 0 };
+  const dec = legs.reduce((a, l) => a * americanToDecimal(l.odds), 1);
+  const american = dec >= 2 ? Math.round((dec - 1) * 100) : Math.round(-100 / (dec - 1));
+  return { dec, prob: ((1 / dec) * 100).toFixed(1), american };
+}
 
-# 4. When ready for iPhone:
-npm install -g eas-cli
-eas login          # create free account at expo.dev
-npx testflight     # walks you through everything interactively
+// ─── Transform Odds API response into our game format ───────────
+function transformGame(g) {
+  const bk = g.bookmakers?.[0];
+  if (!bk) return null;
+  const h2h = bk.markets?.find(m => m.key === "h2h")?.outcomes || [];
+  const spreads = bk.markets?.find(m => m.key === "spreads")?.outcomes || [];
+  const totals = bk.markets?.find(m => m.key === "totals")?.outcomes || [];
+
+  const home = g.home_team;
+  const away = g.away_team;
+  const homeML = h2h.find(o => o.name === home)?.price;
+  const awayML = h2h.find(o => o.name === away)?.price;
+  const homeSpread = spreads.find(o => o.name === home);
+  const total = totals.find(o => o.name === "Over");
+
+  if (!homeML || !awayML) return null;
+
+  const time = new Date(g.commence_time);
+  return {
+    id: g.id,
+    home: home.replace(/ Blue Devils| Jayhawks| Boilermakers| Mountaineers| Tigers| Wildcats| Bulldogs| Volunteers/g, ""),
+    away: away.replace(/ Blue Devils| Jayhawks| Boilermakers| Mountaineers| Tigers| Wildcats| Bulldogs| Volunteers/g, ""),
+    homeML,
+    awayML,
+    spread: homeSpread?.point ?? 0,
+    spreadOdds: homeSpread?.price ?? -110,
+    total: total?.point ?? 0,
+    bookmaker: bk.title,
+    time: time.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }),
+    date: time.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+  };
+}
+
+const ROUNDS = ["R1", "R2", "Sweet 16", "Elite 8", "Final Four", "Championship"];
+
+// ─── Main App ───────────────────────────────────────────────────
+export default function App() {
+  const [tab, setTab] = useState("odds");
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [betSlip, setBetSlip] = useState([]);
+  const [wager, setWager] = useState(100);
+  const [pasteText, setPasteText] = useState("");
+  const [parsedOdds, setParsedOdds] = useState([]);
+  const [history, setHistory] = useState([
+    { id: 1, desc: "Duke ML -145", wager: 50, result: "Win", payout: 84.48, date: "Mar 28" },
+    { id: 2, desc: "2-Team Parlay", wager: 25, result: "Loss", payout: 0, date: "Mar 27" },
+    { id: 3, desc: "Kansas +2.5 -110", wager: 100, result: "Win", payout: 190.91, date: "Mar 25" },
+  ]);
+
+  const fetchOdds = useCallback(async () => {
+    if (!ODDS_API_KEY || ODDS_API_KEY === "YOUR_API_KEY_HERE") {
+      setError("add_key");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(ODDS_URL);
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data = await res.json();
+      const transformed = data.map(transformGame).filter(Boolean);
+      setGames(transformed);
+      setLastUpdated(new Date().toLocaleTimeString());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchOdds(); }, [fetchOdds]);
+
+  const addToBetSlip = useCallback((game, type, odds, label) => {
+    const key = `${game.id}-${type}`;
+    setBetSlip(prev =>
+      prev.find(b => b.key === key) ? prev.filter(b => b.key !== key) : [...prev, { key, label, odds }]
+    );
+  }, []);
+
+  const isInSlip = (game, type) => betSlip.some(b => b.key === `${game.id}-${type}`);
+  const parlay = calcParlay(betSlip);
+  const parlayPayout = (wager * parlay.dec).toFixed(2);
+  const parlayProfit = (wager * parlay.dec - wager).toFixed(2);
+
+  const parseOdds = () => {
+    const lines = pasteText.split("\n").filter(l => l.trim());
+    const parsed = [];
+    lines.forEach(line => {
+      const matches = [...line.matchAll(/([A-Za-z ]+?)\s+([+-]\d+)/g)].map(m => ({ team: m[1].trim(), odds: parseInt(m[2]) }));
+      if (matches.length >= 2) parsed.push({ home: matches[0].team, away: matches[1].team, homeML: matches[0].odds, awayML: matches[1].odds });
+      else if (matches.length === 1) parsed.push({ team: matches[0].team, odds: matches[0].odds });
+    });
+    setParsedOdds(parsed);
+  };
+
+  const TABS = [["odds","ODDS"], ["calc","CALC"], ["slip","SLIP"], ["paste","IMPORT"], ["history","LOG"]];
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#080c17", fontFamily: "'DM Mono','Fira Mono',monospace", color: "#e0e6f0", maxWidth: 480, margin: "0 auto" }}>
+
+      {/* ── Header ── */}
+      <div style={{ background: "linear-gradient(160deg,#0c1428,#182038)", borderBottom: "2px solid #f59e0b", padding: "18px 18px 12px", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 3, textTransform: "uppercase" }}>NCAA Tournament</div>
+            <div style={{ fontSize: 21, fontWeight: 700, color: "#fff", letterSpacing: -0.5, marginTop: 2 }}>Bracket Odds <span style={{ color: "#f59e0b" }}>⚡</span></div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <button onClick={fetchOdds} disabled={loading} style={{ background: loading ? "#1a2535" : "rgba(245,158,11,0.15)", border: "1px solid #f59e0b", borderRadius: 8, color: "#f59e0b", cursor: "pointer", padding: "6px 12px", fontSize: 10, fontFamily: "inherit", fontWeight: 700, letterSpacing: 1 }}>
+              {loading ? "⟳ LOADING" : "↻ REFRESH"}
+            </button>
+            {lastUpdated && <div style={{ fontSize: 9, color: "#445566", marginTop: 4 }}>Updated {lastUpdated}</div>}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
+          {TABS.map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)} style={{
+              flex: 1, padding: "7px 2px", borderRadius: 8, border: "none", cursor: "pointer",
+              fontSize: 9, fontWeight: 700, letterSpacing: 0.5, fontFamily: "inherit",
+              background: tab === key ? "#f59e0b" : "#1a2535",
+              color: tab === key ? "#080c17" : "#667788",
+              position: "relative",
+            }}>
+              {label}
+              {key === "slip" && betSlip.length > 0 && (
+                <span style={{ position: "absolute", top: -4, right: -2, background: "#ef4444", borderRadius: 10, fontSize: 8, padding: "1px 4px", color: "#fff" }}>{betSlip.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "14px 14px 80px" }}>
+
+        {/* ── ODDS TAB ── */}
+        {tab === "odds" && (
+          <div>
+            {error === "add_key" && (
+              <div style={{ background: "rgba(245,158,11,0.1)", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 14, fontSize: 12, lineHeight: 1.7 }}>
+                <div style={{ color: "#f59e0b", fontWeight: 700, marginBottom: 6 }}>⚙ ADD YOUR API KEY</div>
+                1. Get a free key at <strong>the-odds-api.com</strong><br />
+                2. Replace <code style={{ color: "#60a5fa" }}>YOUR_API_KEY_HERE</code> at the top of this file<br />
+                3. Free tier: 500 requests/month (plenty for personal use)<br /><br />
+                <div style={{ color: "#8899aa", fontSize: 11 }}>Until then, use the IMPORT tab to paste odds manually.</div>
+              </div>
+            )}
+            {error && error !== "add_key" && (
+              <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid #ef4444", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 12, color: "#ef4444" }}>
+                Error: {error} — <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={fetchOdds}>retry</span>
+              </div>
+            )}
+            {loading && (
+              <div style={{ textAlign: "center", padding: 40, color: "#445566", fontSize: 13 }}>Fetching live odds…</div>
+            )}
+            {!loading && games.length === 0 && !error && (
+              <div style={{ textAlign: "center", padding: 40, color: "#445566", fontSize: 13 }}>
+                No NCAA Tournament games currently scheduled.<br />
+                <span style={{ fontSize: 11, marginTop: 8, display: "block" }}>Check back closer to tournament time, or use IMPORT to paste odds.</span>
+              </div>
+            )}
+            {games.map(game => <GameCard key={game.id} game={game} addToBetSlip={addToBetSlip} isInSlip={isInSlip} />)}
+          </div>
+        )}
+
+        {/* ── SLIP TAB ── */}
+        {tab === "slip" && (
+          <div>
+            {betSlip.length === 0 ? (
+              <div style={{ textAlign: "center", color: "#334455", padding: 50, fontSize: 13 }}>
+                Tap any odds button on the Odds tab<br />to build your parlay slip.
+              </div>
+            ) : (
+              <>
+                {betSlip.map(b => (
+                  <div key={b.key} style={{ background: "#111825", border: "1px solid #1e2e40", borderRadius: 10, padding: "11px 13px", marginBottom: 7, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{b.label}</div>
+                      <div style={{ fontSize: 10, color: "#667788", marginTop: 2 }}>Implied {impliedProb(b.odds)}%</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: b.odds > 0 ? "#34d399" : "#fb923c" }}>{fmt(b.odds)}</span>
+                      <button onClick={() => setBetSlip(p => p.filter(x => x.key !== b.key))} style={{ background: "rgba(239,68,68,0.15)", border: "none", borderRadius: 6, color: "#ef4444", cursor: "pointer", padding: "4px 8px", fontFamily: "inherit", fontSize: 11 }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ background: "linear-gradient(135deg,#0f1f0f,#162014)", border: "1px solid #34d399", borderRadius: 12, padding: 16, marginTop: 14 }}>
+                  <div style={{ fontSize: 10, color: "#34d399", letterSpacing: 2, marginBottom: 12 }}>PARLAY SUMMARY</div>
+                  <Row label="Legs" val={`${betSlip.length}-team`} />
+                  <Row label="Combined odds" val={fmt(parlay.american)} />
+                  <Row label="Implied probability" val={`${parlay.prob}%`} />
+                  <div style={{ height: 1, background: "#1f3025", margin: "10px 0" }} />
+                  <label style={{ fontSize: 10, color: "#667788", display: "block", marginBottom: 5 }}>WAGER ($)</label>
+                  <input type="number" value={wager} onChange={e => setWager(Number(e.target.value))} style={{ width: "100%", background: "#0a100a", border: "1px solid #34d399", borderRadius: 8, color: "#fff", padding: "9px 11px", fontSize: 16, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  <div style={{ marginTop: 12 }}>
+                    <Row label="Total payout" val={`$${parlayPayout}`} valColor="#34d399" large />
+                    <Row label="Profit" val={`+$${parlayProfit}`} valColor="#34d399" />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── CALC TAB ── */}
+        {tab === "calc" && (
+          <div>
+            <SingleBetCalc />
+            <ParlayCalc />
+          </div>
+        )}
+
+        {/* ── IMPORT TAB ── */}
+        {tab === "paste" && (
+          <div>
+            <div style={{ fontSize: 12, color: "#667788", marginBottom: 10, lineHeight: 1.7 }}>
+              Paste odds from ESPN, Vegas Insider, Action Network, etc.<br />
+              <span style={{ color: "#f59e0b" }}>Format: Team1 -150 Team2 +130</span>
+            </div>
+            <textarea value={pasteText} onChange={e => setPasteText(e.target.value)}
+              placeholder={"Example:\nDuke -145 UNC +125\nKansas +110 Houston -130\nPurdue -160 Tennessee +140"}
+              style={{ width: "100%", minHeight: 150, background: "#111825", border: "1px solid #1e2e40", borderRadius: 10, color: "#e0e6f0", padding: 12, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical" }} />
+            <button onClick={parseOdds} style={{ width: "100%", padding: 12, background: "#f59e0b", border: "none", borderRadius: 10, color: "#080c17", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", marginTop: 10 }}>PARSE ODDS</button>
+            {parsedOdds.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 10 }}>PARSED — {parsedOdds.length} matchup{parsedOdds.length > 1 ? "s" : ""}</div>
+                {parsedOdds.map((g, i) => (
+                  <div key={i} style={{ background: "#111825", border: "1px solid #1e2e40", borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
+                    {g.home ? (
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <div><div style={{ fontSize: 13, fontWeight: 600 }}>{g.away}</div><div style={{ fontSize: 10, color: "#667788" }}>vs {g.home}</div></div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontWeight: 700, color: g.awayML > 0 ? "#34d399" : "#fb923c" }}>{fmt(g.awayML)}</div>
+                          <div style={{ fontWeight: 700, color: g.homeML > 0 ? "#34d399" : "#fb923c" }}>{fmt(g.homeML)}</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 13 }}>{g.team}</span>
+                        <span style={{ fontWeight: 700, color: g.odds > 0 ? "#34d399" : "#fb923c" }}>{fmt(g.odds)}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── HISTORY TAB ── */}
+        {tab === "history" && (
+          <div>
+            <HistoryStats history={history} />
+            {history.map(h => (
+              <div key={h.id} style={{
+                background: "#111825",
+                borderLeft: `3px solid ${h.result === "Win" ? "#34d399" : "#ef4444"}`,
+                borderRadius: 10, padding: "11px 13px", marginBottom: 7,
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{h.desc}</div>
+                  <div style={{ fontSize: 10, color: "#667788", marginTop: 2 }}>{h.date} · Wagered ${h.wager}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: h.result === "Win" ? "#34d399" : "#ef4444" }}>{h.result}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: h.result === "Win" ? "#34d399" : "#8899aa" }}>
+                    {h.result === "Win" ? `$${h.payout.toFixed(2)}` : `-$${h.wager}`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <style>{`* { -webkit-tap-highlight-color: transparent; } input:focus,textarea:focus { outline: none; } ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: #1e2e40; border-radius: 4px; }`}</style>
+    </div>
+  );
+}
+
+function Row({ label, val, valColor = "#fff", large }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+      <span style={{ fontSize: 12, color: "#667788" }}>{label}</span>
+      <span style={{ fontSize: large ? 16 : 13, fontWeight: 700, color: valColor }}>{val}</span>
+    </div>
+  );
+}
+
+function GameCard({ game, addToBetSlip, isInSlip }) {
+  const fav = game.homeML < game.awayML ? "home" : "away";
+  return (
+    <div style={{ background: "#111825", border: "1px solid #1a2a3a", borderRadius: 14, marginBottom: 12, overflow: "hidden" }}>
+      <div style={{ background: "#0d1520", padding: "7px 13px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid #1a2535" }}>
+        <span style={{ fontSize: 9, color: "#f59e0b", fontWeight: 700, letterSpacing: 1 }}>{game.bookmaker?.toUpperCase()}</span>
+        <span style={{ fontSize: 10, color: "#556677" }}>{game.date} · {game.time}</span>
+      </div>
+      <div style={{ padding: "12px 13px" }}>
+        {[["away", game.away, game.awayML], ["home", game.home, game.homeML]].map(([side, team, ml]) => (
+          <div key={side} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: side === "away" ? "1px solid #151f2e" : "none" }}>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 14, fontWeight: fav === side ? 700 : 400, color: fav === side ? "#fff" : "#99aabb" }}>{team}</span>
+              {fav === side && <span style={{ fontSize: 8, color: "#f59e0b", marginLeft: 6 }}>★</span>}
+              <div style={{ fontSize: 9, color: "#445566", marginTop: 1 }}>Implied {impliedProb(ml)}%</div>
+            </div>
+            <OddsBtn active={isInSlip(game, `${side}ML`)} odds={ml} onClick={() => addToBetSlip(game, `${side}ML`, ml, `${team} ML`)} />
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 7, marginTop: 10 }}>
+          <SmallBtn active={isInSlip(game, "spread")} label="SPREAD" val={`${game.home.split(" ").pop()} ${fmt(game.spread)}`} sub={fmt(game.spreadOdds)} onClick={() => addToBetSlip(game, "spread", game.spreadOdds, `${game.home} ${fmt(game.spread)}`)} />
+          <SmallBtn active={isInSlip(game, "ou")} label="TOTAL" val={game.total > 0 ? `${game.total}` : "—"} sub="O/U -110" onClick={() => addToBetSlip(game, "ou", -110, `O/U ${game.total}`)} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OddsBtn({ active, odds, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "6px 13px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 700, minWidth: 64, transition: "all 0.1s",
+      border: `1px solid ${active ? "#f59e0b" : odds > 0 ? "#34d39933" : "#fb923c33"}`,
+      background: active ? "rgba(245,158,11,0.2)" : odds > 0 ? "rgba(52,211,153,0.07)" : "rgba(251,146,60,0.07)",
+      color: active ? "#f59e0b" : odds > 0 ? "#34d399" : "#fb923c",
+    }}>{fmt(odds)}</button>
+  );
+}
+
+function SmallBtn({ active, label, val, sub, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: 1, padding: "8px 6px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "center",
+      border: `1px solid ${active ? "#f59e0b" : "#1a2a3a"}`,
+      background: active ? "rgba(245,158,11,0.12)" : "#0d1520",
+      color: active ? "#f59e0b" : "#99aabb",
+    }}>
+      <div style={{ fontSize: 9, color: active ? "#f59e0b" : "#445566", marginBottom: 2, letterSpacing: 1 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600 }}>{val}</div>
+      <div style={{ fontSize: 10, color: "#556677" }}>{sub}</div>
+    </button>
+  );
+}
+
+function SingleBetCalc() {
+  const [odds, setOdds] = useState(-110);
+  const [wager, setWager] = useState(100);
+  const dec = americanToDecimal(odds);
+  const payout = (wager * dec).toFixed(2);
+  const profit = (wager * dec - wager).toFixed(2);
+
+  return (
+    <div style={{ background: "#111825", border: "1px solid #1a2a3a", borderRadius: 14, padding: 16, marginBottom: 12 }}>
+      <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 12 }}>SINGLE BET CALCULATOR</div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+        {[["ODDS", odds, setOdds], ["WAGER ($)", wager, setWager]].map(([lbl, val, set]) => (
+          <div key={lbl} style={{ flex: 1 }}>
+            <label style={{ fontSize: 9, color: "#556677", display: "block", marginBottom: 5, letterSpacing: 1 }}>{lbl}</label>
+            <input type="number" value={val} onChange={e => set(Number(e.target.value))} style={{ width: "100%", background: "#080c17", border: "1px solid #1e2e40", borderRadius: 8, color: "#fff", padding: "9px 10px", fontSize: 16, fontFamily: "inherit", boxSizing: "border-box" }} />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 7 }}>
+        {[["PAYOUT", `$${payout}`, "#e0e6f0"], ["PROFIT", `+$${profit}`, "#34d399"], ["IMPLIED", `${impliedProb(odds)}%`, "#60a5fa"]].map(([l, v, c]) => (
+          <div key={l} style={{ flex: 1, background: "#080c17", borderRadius: 8, padding: "9px 6px", textAlign: "center" }}>
+            <div style={{ fontSize: 8, color: "#445566", letterSpacing: 1, marginBottom: 3 }}>{l}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: c }}>{v}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ParlayCalc() {
+  const [legs, setLegs] = useState([{ id: 1, odds: -110 }, { id: 2, odds: +150 }]);
+  const [wager, setWager] = useState(50);
+  const addLeg = () => setLegs(p => [...p, { id: Date.now(), odds: -110 }]);
+  const removeLeg = id => setLegs(p => p.filter(l => l.id !== id));
+  const updateLeg = (id, odds) => setLegs(p => p.map(l => l.id === id ? { ...l, odds } : l));
+  const parlay = calcParlay(legs);
+  const payout = (wager * parlay.dec).toFixed(2);
+  const profit = (wager * parlay.dec - wager).toFixed(2);
+
+  return (
+    <div style={{ background: "#111825", border: "1px solid #1a2a3a", borderRadius: 14, padding: 16 }}>
+      <div style={{ fontSize: 10, color: "#f59e0b", letterSpacing: 2, marginBottom: 12 }}>PARLAY BUILDER</div>
+      {legs.map((leg, i) => (
+        <div key={leg.id} style={{ display: "flex", gap: 7, alignItems: "center", marginBottom: 7 }}>
+          <div style={{ fontSize: 10, color: "#445566", width: 18 }}>L{i + 1}</div>
+          <input type="number" value={leg.odds} onChange={e => updateLeg(leg.id, Number(e.target.value))} style={{ flex: 1, background: "#080c17", border: "1px solid #1e2e40", borderRadius: 8, color: leg.odds > 0 ? "#34d399" : "#fb923c", padding: "8px 10px", fontSize: 14, fontFamily: "inherit" }} />
+          <div style={{ fontSize: 10, color: "#556677", width: 34, textAlign: "center" }}>{impliedProb(leg.odds)}%</div>
+          <button onClick={() => removeLeg(leg.id)} style={{ background: "rgba(239,68,68,0.12)", border: "none", borderRadius: 6, color: "#ef4444", cursor: "pointer", padding: "5px 7px", fontFamily: "inherit", fontSize: 10 }}>✕</button>
+        </div>
+      ))}
+      <button onClick={addLeg} style={{ width: "100%", padding: "7px", background: "transparent", border: "1px dashed #1e2e40", borderRadius: 8, color: "#556677", cursor: "pointer", fontSize: 11, fontFamily: "inherit", marginBottom: 10 }}>+ Add Leg</button>
+      <label style={{ fontSize: 9, color: "#556677", display: "block", marginBottom: 5, letterSpacing: 1 }}>WAGER ($)</label>
+      <input type="number" value={wager} onChange={e => setWager(Number(e.target.value))} style={{ width: "100%", background: "#080c17", border: "1px solid #1e2e40", borderRadius: 8, color: "#fff", padding: "9px 10px", fontSize: 16, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12 }} />
+      <div style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 10, padding: 11 }}>
+        <Row label={`${legs.length}-Leg Parlay`} val={fmt(parlay.american)} valColor="#f59e0b" />
+        <Row label="Implied prob" val={`${parlay.prob}%`} />
+        <div style={{ height: 1, background: "#1e2a14", margin: "8px 0" }} />
+        <Row label="Total payout" val={`$${payout}`} valColor="#34d399" large />
+        <Row label="Profit" val={`+$${profit}`} valColor="#34d399" />
+      </div>
+    </div>
+  );
+}
+
+function HistoryStats({ history }) {
+  const wins = history.filter(h => h.result === "Win").length;
+  const wagered = history.reduce((a, h) => a + h.wager, 0);
+  const returned = history.filter(h => h.result === "Win").reduce((a, h) => a + h.payout, 0);
+  const roi = (((returned - wagered) / wagered) * 100).toFixed(1);
+  return (
+    <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>
+      {[["WIN RATE", `${wins}/${history.length}`, "#60a5fa"], ["WAGERED", `$${wagered}`, "#e0e6f0"], ["ROI", `${roi}%`, Number(roi) >= 0 ? "#34d399" : "#ef4444"]].map(([l, v, c]) => (
+        <div key={l} style={{ flex: 1, background: "#111825", border: "1px solid #1a2a3a", borderRadius: 10, padding: "9px 7px", textAlign: "center" }}>
+          <div style={{ fontSize: 8, color: "#445566", letterSpacing: 1, marginBottom: 3 }}>{l}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: c }}>{v}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
