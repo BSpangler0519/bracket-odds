@@ -534,6 +534,46 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
           <div id="edit-form"></div>
         </div>
       </div>
+
+      <!-- Bulk Import Tool -->
+      <div style="margin-top:10px">
+        <button onclick="toggleBulkImport()" style="width:100%;padding:9px;background:transparent;border:1px solid #3b4fd8;border-radius:8px;color:#818cf8;font-size:11px;font-weight:700;letter-spacing:1px">📋 BULK IMPORT BARTTORVIK STATS</button>
+        <div id="bulk-import-panel" style="display:none;margin-top:10px">
+
+          <div style="background:#0f1629;border:1px solid #3b4fd8;border-radius:12px;padding:14px;margin-bottom:12px">
+            <div style="font-size:10px;color:#818cf8;letter-spacing:2px;margin-bottom:8px">HOW TO USE</div>
+            <div style="font-size:12px;color:#94a3b8;line-height:1.8">
+              1. Go to <a href="https://barttorvik.com/trank.php" target="_blank" style="color:#38bdf8">barttorvik.com</a><br/>
+              2. Find each tournament team — note their <strong style="color:#fff">AdjOE</strong>, <strong style="color:#fff">AdjDE</strong>, and <strong style="color:#fff">Tempo</strong><br/>
+              3. Paste one team per line below in this format:<br/>
+              <code style="color:#f59e0b;font-size:11px;background:#080c17;padding:4px 8px;border-radius:4px;display:block;margin-top:6px">TeamName, AdjOE, AdjDE, Tempo</code>
+              <span style="font-size:11px;color:#445566">Example: Duke, 118.2, 96.8, 71.8</span>
+            </div>
+          </div>
+
+          <!-- Quick format helper -->
+          <div style="background:#111825;border:1px solid #1a2a3a;border-radius:10px;padding:12px;margin-bottom:10px">
+            <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:6px">QUICK ADD — SINGLE TEAM</div>
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <input id="bulk-name" type="text" placeholder="Team name" style="flex:2;background:#080c17;border:1px solid #1e2e40;border-radius:6px;color:#fff;padding:7px 9px;font-size:12px"/>
+              <input id="bulk-ortg" type="number" placeholder="AdjOE" style="flex:1;background:#080c17;border:1px solid #1e2e40;border-radius:6px;color:#fff;padding:7px 6px;font-size:12px"/>
+              <input id="bulk-drtg" type="number" placeholder="AdjDE" style="flex:1;background:#080c17;border:1px solid #1e2e40;border-radius:6px;color:#fff;padding:7px 6px;font-size:12px"/>
+              <input id="bulk-tempo" type="number" placeholder="Tempo" style="flex:1;background:#080c17;border:1px solid #1e2e40;border-radius:6px;color:#fff;padding:7px 6px;font-size:12px"/>
+            </div>
+            <button onclick="quickAddTeam()" style="width:100%;padding:7px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:6px;color:#f59e0b;font-size:11px;font-weight:700;font-family:inherit">+ ADD TEAM</button>
+          </div>
+
+          <!-- Bulk paste area -->
+          <div style="font-size:10px;color:#818cf8;letter-spacing:1px;margin-bottom:6px">PASTE MULTIPLE TEAMS (one per line)</div>
+          <textarea id="bulk-paste-area" placeholder="Duke, 118.2, 96.8, 71.8&#10;Kansas, 117.8, 98.4, 71.6&#10;Arkansas, 115.6, 100.8, 71.4&#10;..." style="width:100%;height:160px;background:#080c17;border:1px solid #3b4fd8;border-radius:8px;color:#e0e6f0;padding:10px;font-size:12px;font-family:'Courier New',monospace;resize:vertical;box-sizing:border-box"></textarea>
+
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button onclick="parseBulkImport()" style="flex:2;padding:10px;background:#818cf8;border:none;border-radius:8px;color:#080c17;font-size:12px;font-weight:700;font-family:inherit">IMPORT ALL TEAMS</button>
+            <button onclick="clearBulkCustomStats()" style="flex:1;padding:10px;background:transparent;border:1px solid #f97316;border-radius:8px;color:#f97316;font-size:11px;font-weight:700;font-family:inherit">RESET ALL</button>
+          </div>
+          <div id="bulk-import-result" style="margin-top:10px"></div>
+        </div>
+      </div>
     </div>
 
 
@@ -1275,6 +1315,82 @@ function resetTeamStats(name){
   delete teamStats[name];
   saveTeamStats();
   document.getElementById('edit-form').innerHTML='<div style="color:#f59e0b;padding:10px;font-size:13px">✓ Reset to default stats for '+name+'</div>';
+}
+
+// ══ BULK IMPORT ══
+function toggleBulkImport(){
+  var p=document.getElementById('bulk-import-panel');
+  p.style.display = p.style.display==='none' ? 'block' : 'none';
+}
+
+function quickAddTeam(){
+  var name=document.getElementById('bulk-name').value.trim();
+  var ortg=parseFloat(document.getElementById('bulk-ortg').value)||0;
+  var drtg=parseFloat(document.getElementById('bulk-drtg').value)||0;
+  var tempo=parseFloat(document.getElementById('bulk-tempo').value)||0;
+  if(!name||!ortg||!drtg){alert('Please enter team name, AdjOE and AdjDE at minimum.');return;}
+  var result = importSingleTeam(name, ortg, drtg, tempo||69.0);
+  document.getElementById('bulk-import-result').innerHTML='<div style="color:#38bdf8;padding:8px;font-size:12px">✓ '+result+'</div>';
+  document.getElementById('bulk-name').value='';
+  document.getElementById('bulk-ortg').value='';
+  document.getElementById('bulk-drtg').value='';
+  document.getElementById('bulk-tempo').value='';
+}
+
+function importSingleTeam(name, ortg, drtg, tempo){
+  // Estimate PPG from ortg and tempo (rough: ortg/100 * tempo * ~0.93 possessions)
+  var ppg = Math.round((ortg / 100) * tempo * 0.93 * 10) / 10;
+  // Estimate Four Factors from ortg/drtg (approximations)
+  var efg  = Math.round((ortg / 2.2) * 10) / 10;
+  var tov  = Math.round((ortg < 110 ? 16.0 : ortg < 115 ? 14.5 : 13.5) * 10) / 10;
+  var orb  = Math.round((drtg < 98 ? 33.0 : drtg < 102 ? 30.5 : 28.5) * 10) / 10;
+  var ftr  = Math.round((ortg / 3.4) * 10) / 10;
+  teamStats[name] = {ppg:ppg, ortg:ortg, drtg:drtg, efg:efg, tov:tov, orb:orb, ftr:ftr, pace:tempo};
+  saveTeamStats();
+  return name+' added (ORtg:'+ortg+' DRtg:'+drtg+' Pace:'+tempo+')';
+}
+
+function parseBulkImport(){
+  var raw = document.getElementById('bulk-paste-area').value.trim();
+  if(!raw){alert('Please paste some team data first.');return;}
+  var lines = raw.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  var imported=[], errors=[];
+  lines.forEach(function(line){
+    // Support: "TeamName, 118.2, 96.8, 71.8" or tab-separated
+    var parts = line.split(/[\t,]+/).map(function(p){return p.trim();});
+    if(parts.length < 3){errors.push(line);return;}
+    var name = parts[0];
+    var ortg = parseFloat(parts[1]);
+    var drtg = parseFloat(parts[2]);
+    var tempo = parseFloat(parts[3]) || 69.0;
+    if(!name || isNaN(ortg) || isNaN(drtg)){errors.push(line);return;}
+    importSingleTeam(name, ortg, drtg, tempo);
+    imported.push(name);
+  });
+  var resultEl = document.getElementById('bulk-import-result');
+  var html = '';
+  if(imported.length){
+    html += '<div style="background:#0a1a0a;border:1px solid #38bdf833;border-radius:8px;padding:10px;margin-bottom:8px">'
+      +'<div style="font-size:10px;color:#38bdf8;letter-spacing:1px;margin-bottom:6px">✓ IMPORTED '+imported.length+' TEAMS</div>'
+      +'<div style="font-size:11px;color:#7a8fa6;line-height:1.8">'+imported.join(', ')+'</div>'
+      +'</div>';
+  }
+  if(errors.length){
+    html += '<div style="background:#1a0a0a;border:1px solid #f9731633;border-radius:8px;padding:10px">'
+      +'<div style="font-size:10px;color:#f97316;letter-spacing:1px;margin-bottom:6px">⚠ COULD NOT PARSE '+errors.length+' LINE'+(errors.length>1?'S':'')+'</div>'
+      +'<div style="font-size:11px;color:#7a8fa6">'+errors.join('<br/>')+'</div>'
+      +'<div style="font-size:10px;color:#445566;margin-top:4px">Format: TeamName, AdjOE, AdjDE, Tempo</div>'
+      +'</div>';
+  }
+  resultEl.innerHTML = html;
+  if(imported.length) document.getElementById('bulk-paste-area').value='';
+}
+
+function clearBulkCustomStats(){
+  if(!confirm('Reset ALL custom stats back to defaults? This cannot be undone.')) return;
+  localStorage.removeItem('teamStatsCustom');
+  teamStats = {};
+  document.getElementById('bulk-import-result').innerHTML='<div style="color:#f97316;padding:8px;font-size:12px">✓ All custom stats cleared — defaults restored.</div>';
 }
 
 // ══ REFRESH ALL ══
