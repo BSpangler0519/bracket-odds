@@ -1107,7 +1107,14 @@ function renderGames(games){
       +'<div class="sub-bets">'
       +'<button class="sub-btn'+(spAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'spread\','+g.spreadOdds+',\''+ escQ(spLabel)+'\',this)"><div class="sub-label">SPREAD</div><div class="sub-val">'+spLabel+'</div><div class="sub-odds">'+fmt(g.spreadOdds)+'</div></button>'
       +'<button class="sub-btn'+(ouAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'ou\',-110,\'O/U '+totLabel+'\',this)"><div class="sub-label">TOTAL</div><div class="sub-val">'+totLabel+'</div><div class="sub-odds">O/U -110</div></button>'
-      +'</div></div></div>';
+      +'</div>'
+      // ── Quick-add bet row ──
+      +'<div style="border-top:1px solid #1a2535;margin-top:8px;padding-top:8px;display:flex;gap:6px">'
+      +'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',date:\''+escQ(g.date)+'\',time:\''+escQ(g.time)+'\',type:\'ml\',team:\''+escQ(g.away)+'\',opponent:\''+escQ(g.home)+'\',odds:'+g.awayML+'})" style="flex:1;padding:5px 4px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:6px;color:#38bdf8;font-size:9px;font-weight:700;font-family:inherit">+ BET ML</button>'
+      +(g.spread!=null?'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',date:\''+escQ(g.date)+'\',time:\''+escQ(g.time)+'\',type:\'spread\',team:\''+escQ(g.home)+'\',opponent:\''+escQ(g.away)+'\',spread:'+g.spread+',odds:'+g.spreadOdds+'})" style="flex:1;padding:5px 4px;background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.3);border-radius:6px;color:#c084fc;font-size:9px;font-weight:700;font-family:inherit">+ BET SPREAD</button>':'' )
+      +(g.total!=null?'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',date:\''+escQ(g.date)+'\',time:\''+escQ(g.time)+'\',type:\'ou\',team:\''+escQ(g.away)+'\',opponent:\''+escQ(g.home)+'\',total:'+g.total+',ouSide:\'over\',odds:-110})" style="flex:1;padding:5px 4px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.3);border-radius:6px;color:#34d399;font-size:9px;font-weight:700;font-family:inherit">+ BET O/U</button>':'')
+      +'</div>'
+      +'</div></div>';
   });
   document.getElementById('odds-list').innerHTML=html;
 }
@@ -1654,6 +1661,72 @@ function hideAddBetForm(){
   document.getElementById('add-bet-btn').style.display='block';
   clearBetForm();
 }
+
+// Pre-populate bet form from ODDS or PICKS tab and jump to BETS tab
+// data = {away, home, date, time, type, odds, spread, total, ouSide, team, opponent}
+function quickAddBet(data){
+  switchTab('bets');
+  // Show the form
+  document.getElementById('add-bet-form').style.display='block';
+  document.getElementById('add-bet-btn').style.display='none';
+  document.getElementById('bet-odds').oninput=updateToWin;
+  document.getElementById('bet-wager').oninput=updateToWin;
+  clearBetForm();
+
+  // Set bet type first (shows/hides correct fields)
+  selectBetType(data.type || 'ml');
+
+  // Teams
+  var team   = data.team     || data.away || '';
+  var opp    = data.opponent || data.home || '';
+  var tEl = document.getElementById('bet-team');
+  var oEl = document.getElementById('bet-opponent');
+  if(tEl) tEl.value = team;
+  if(oEl) oEl.value = opp;
+
+  // Type-specific fields
+  if(data.type === 'spread'){
+    var spEl = document.getElementById('bet-spread');
+    if(spEl && data.spread != null) spEl.value = data.spread;
+  }
+  if(data.type === 'ou'){
+    var totEl = document.getElementById('bet-total');
+    var sideEl = document.getElementById('bet-ou-side');
+    if(totEl && data.total != null) totEl.value = data.total;
+    if(sideEl && data.ouSide) sideEl.value = data.ouSide;
+  }
+
+  // Odds
+  if(data.odds){
+    var odsEl = document.getElementById('bet-odds');
+    if(odsEl) odsEl.value = data.odds;
+    updateToWin();
+  }
+
+  // Game date/time — convert "Mar 21" + "7:00 PM ET" to datetime-local format
+  var dtEl = document.getElementById('bet-gametime');
+  if(dtEl && data.date && data.time){
+    try{
+      var year = new Date().getFullYear();
+      var raw = data.date + ' ' + year + ' ' + data.time.replace(' ET','').replace(' CT','').replace(' PT','');
+      var parsed = new Date(raw);
+      if(!isNaN(parsed.getTime())){
+        // Adjust for Eastern time (UTC-4 during daylight saving)
+        parsed.setHours(parsed.getHours() + 4);
+        dtEl.value = parsed.toISOString().slice(0,16);
+      }
+    } catch(e){}
+  } else if(dtEl){
+    var now=new Date(); now.setMinutes(0,0,0);
+    dtEl.value=now.toISOString().slice(0,16);
+  }
+
+  // Scroll form into view
+  setTimeout(function(){
+    var form = document.getElementById('add-bet-form');
+    if(form) form.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 150);
+}
 function clearBetForm(){
   ['bet-team','bet-opponent','bet-spread','bet-total','bet-parlay-desc','bet-odds','bet-wager'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('bet-to-win').textContent=' - ';
@@ -2112,12 +2185,16 @@ function renderPicks(){
         +'</div>':'')
       // Kelly sizing
       +kellyHtml
-      // Add to slip
-      +(!p.isParlay?'<button onclick="addPickToSlip(this)" '
+      // Add to slip + quick bet buttons
+      +(!p.isParlay?'<div style="display:flex;gap:6px;margin-top:8px">'
+        +'<button onclick="addPickToSlip(this)" '
         +'data-key="pick-'+p.game.id+'-'+p.type+'" '
         +'data-label="'+p.pick.replace(/"/g,'&quot;')+'" '
         +'data-odds="'+p.odds+'" '
-        +'style="margin-top:8px;padding:6px 12px;background:transparent;border:1px solid '+col+'44;border-radius:7px;color:'+col+';font-size:10px;font-weight:700;font-family:inherit">+ ADD TO SLIP</button>':'')
+        +'style="flex:1;padding:6px 8px;background:transparent;border:1px solid '+col+'44;border-radius:7px;color:'+col+';font-size:10px;font-weight:700;font-family:inherit">+ SLIP</button>'
+        +'<button onclick="quickAddBet({away:\''+( p.game&&p.game.away ? p.game.away.replace(/'/g,"\\'") : '')+'\',home:\''+( p.game&&p.game.home ? p.game.home.replace(/'/g,"\\'") : '')+'\',date:\''+( p.game&&p.game.date ? p.game.date : '')+'\',time:\''+( p.game&&p.game.time ? p.game.time : '')+'\',type:\''+p.type+'\',team:\''+( p.game&&p.game.away ? p.game.away.replace(/'/g,"\\'") : '')+'\',opponent:\''+( p.game&&p.game.home ? p.game.home.replace(/'/g,"\\'") : '')+'\',odds:'+p.odds+(p.type==='spread'&&p.game&&p.game.spread!=null?',spread:'+p.game.spread:'')+(p.type==='ou'&&p.game&&p.game.total!=null?',total:'+p.game.total+',ouSide:\''+(p.pick.toLowerCase().indexOf('over')>=0?'over':'under')+'\'':'')+'})" '
+        +'style="flex:1;padding:6px 8px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.4);border-radius:7px;color:#f59e0b;font-size:10px;font-weight:700;font-family:inherit">+ BET</button>'
+        +'</div>':'')
       +'</div>';
   }).join('');
 }
