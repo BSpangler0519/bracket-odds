@@ -1840,8 +1840,11 @@ function renderPicks(){
       +'</div>'
       +'<div style="font-size:13px">'+stars(p.stars)+'</div>'
       +'</div>'
-      // Game
-      +'<div style="font-size:10px;color:#7a8fa6;margin-bottom:4px">'+p.game.away+' @ '+p.game.home+(p.game.time?' · '+p.game.time:'')+'</div>'
+      // Game matchup — prominent header
+      +'<div style="background:#0d1520;border-radius:8px;padding:8px 10px;margin-bottom:10px">'
+      +'<div style="font-size:13px;font-weight:700;color:#e0e6f0">'+(p.game&&p.game.away?p.game.away:'?')+' <span style="color:#445566;font-weight:400">@</span> '+(p.game&&p.game.home?p.game.home:'?')+'</div>'
+      +'<div style="font-size:10px;color:#556677;margin-top:2px">'+(p.game&&p.game.date?p.game.date:'')+(p.game&&p.game.time?' · '+p.game.time:'')+'</div>'
+      +'</div>'
       // Pick
       +'<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px">'+p.pick
       +'<span style="font-size:13px;font-weight:700;color:'+(p.odds>0?'#38bdf8':'#c084fc')+';margin-left:8px">'+fmt(p.odds)+'</span></div>'
@@ -1853,7 +1856,7 @@ function renderPicks(){
         +'<div style="flex:1;height:4px;background:#1a2a3a;border-radius:2px"><div style="height:4px;border-radius:2px;background:'+col+';width:'+Math.min(Math.abs(edgeNum)*8,100)+'%"></div></div>'
         +'<div style="font-size:11px;font-weight:700;color:'+col+'">'+edgeStr+'</div>'
         +'</div>':'')
-      // Add to slip button for non-parlay - use data attributes to avoid quote escaping issues
+      // Add to slip button
       +(!p.isParlay?'<button onclick="addPickToSlip(this)" '
         +'data-key="pick-'+p.game.id+'-'+p.type+'" '
         +'data-label="'+p.pick.replace(/"/g,'&quot;')+'" '
@@ -1933,7 +1936,8 @@ async function generateClaudeSummary(){
   // Build context for Claude
   var topPicks = allPicks.filter(function(p){return !p.isParlay;}).slice(0,6);
   var picksContext = topPicks.map(function(p,i){
-    return (i+1)+'. '+p.typeLabel+': '+p.pick+' ('+fmt(p.odds)+') — '+p.reason+' ['+p.stars+' stars, edge: '+p.edge+'%]';
+    var gameStr = p.game ? p.game.away+' @ '+p.game.home : 'Unknown matchup';
+    return (i+1)+'. '+p.typeLabel+' | '+gameStr+' | Pick: '+p.pick+' ('+fmt(p.odds)+') — '+p.reason+' ['+p.stars+' stars, edge: '+p.edge+'%]';
   }).join('\n');
 
   var parlayPick = allPicks.find(function(p){return p.isParlay;});
