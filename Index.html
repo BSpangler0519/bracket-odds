@@ -1723,7 +1723,7 @@ async function generateClaudeSummary(){
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':CLAUDE_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
+        model:'claude-sonnet-4-5',
         max_tokens:1000,
         messages:[{role:'user', content:prompt}]
       })
@@ -1748,7 +1748,16 @@ async function generateClaudeSummary(){
     clearInterval(dotTimer);
     document.getElementById('claude-summary-loading').style.display='none';
     document.getElementById('claude-summary-box').style.display='block';
-    document.getElementById('claude-summary-content').innerHTML='<span style="color:#f97316">Error: '+e.message+'</span>';
+    var msg = e.message || 'Unknown error';
+    var hint = '';
+    if(msg.toLowerCase().indexOf('load')>-1 || msg.toLowerCase().indexOf('network')>-1 || msg.toLowerCase().indexOf('failed')>-1){
+      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Network error — Safari may be blocking the request. Try on WiFi or check your connection.</span>';
+    } else if(msg.indexOf('401')>-1 || msg.toLowerCase().indexOf('auth')>-1){
+      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Invalid API key — go to KEYS tab and re-enter your Claude key.</span>';
+    } else if(msg.indexOf('credit')>-1 || msg.indexOf('billing')>-1 || msg.indexOf('quota')>-1){
+      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Add credits at console.anthropic.com → Billing.</span>';
+    }
+    document.getElementById('claude-summary-content').innerHTML='<span style="color:#f97316">Error: '+msg+'</span>'+hint;
   }
 }
 
