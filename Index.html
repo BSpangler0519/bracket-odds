@@ -209,7 +209,11 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
         <div class="brand-sub">NCAA Tournament</div>
         <div class="brand-title">Bracket Odds <span>⚡</span></div>
       </div>
-      <div id="last-updated" style="text-align:right;padding-top:4px"></div>
+      <div style="text-align:right;padding-top:2px">
+        <div id="last-updated" style="font-size:9px;color:#7a8fa6"></div>
+        <div id="cache-status" style="font-size:9px;margin-top:2px"></div>
+        <button id="force-refresh-btn" onclick="forceRefresh()" style="display:none;font-size:8px;color:#38bdf8;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer;font-family:inherit">Force refresh</button>
+      </div>
     </div>
     <div id="tabs">
       <button class="tab active" data-tab="odds" onclick="switchTab('odds')">ODDS</button>
@@ -611,7 +615,7 @@ function initApp(){
   renderHistory();
   renderPendingBets();
   updateBetsBadge();
-  if(API_KEY){ fetchOdds(); checkPendingBets(); generatePicks(); }
+  if(API_KEY){ fetchOdds(); checkPendingBets(); generatePicks(); startCacheTimer(); }
   else renderOddsError('add_key');
   switchTab('odds');
 }
@@ -628,6 +632,48 @@ function switchTab(name){
 // ══ ODDS FILTER STATE ══
 var currentOddsFilter = 'all';
 var allGamesData = [];
+
+// ══ CACHE ══
+var CACHE_MINUTES = 20;
+var oddsCache = null; // {data, timestamp}
+var cacheTimerInterval = null;
+
+function getCacheAge(){ return oddsCache ? Math.floor((Date.now()-oddsCache.timestamp)/1000) : null; }
+function cacheExpired(){ var age=getCacheAge(); return age===null || age > CACHE_MINUTES*60; }
+
+function updateCacheUI(){
+  var statusEl = document.getElementById('cache-status');
+  var forceBtn = document.getElementById('force-refresh-btn');
+  if(!statusEl) return;
+  if(!oddsCache){ statusEl.textContent=''; if(forceBtn) forceBtn.style.display='none'; return; }
+  var age = getCacheAge();
+  var remaining = Math.max(0, CACHE_MINUTES*60 - age);
+  var mins = Math.floor(remaining/60);
+  var secs = remaining%60;
+  if(remaining > 0){
+    statusEl.style.color = remaining < 120 ? '#f97316' : '#445566';
+    statusEl.textContent = 'Cache expires in '+mins+'m '+secs+'s';
+    if(forceBtn) forceBtn.style.display='block';
+  } else {
+    statusEl.style.color='#38bdf8';
+    statusEl.textContent='Cache expired — tap ↻ to refresh';
+    if(forceBtn) forceBtn.style.display='none';
+  }
+}
+
+function startCacheTimer(){
+  if(cacheTimerInterval) clearInterval(cacheTimerInterval);
+  cacheTimerInterval = setInterval(updateCacheUI, 1000);
+}
+
+async function forceRefresh(){
+  oddsCache = null; // clear cache
+  document.getElementById('force-refresh-btn').style.display='none';
+  document.getElementById('cache-status').textContent='';
+  await refreshAll();
+}
+
+
 
 function filterOdds(f){
   currentOddsFilter = f;
@@ -664,7 +710,26 @@ function renderFilteredGames(){
 async function fetchOdds(){
   if(!API_KEY){renderOddsError('add_key');return;}
   var btn=document.getElementById('refresh-btn');
-  btn.disabled=true;btn.textContent='⟳';
+  btn.disabled=true; btn.textContent='⟳';
+
+  // ── Serve from cache if still fresh ──
+  if(!cacheExpired() && oddsCache){
+    var cached = oddsCache.data;
+    allGamesData = cached.map(transformGame).filter(Boolean);
+    window.lastGamesData = cached;
+    document.getElementById('odds-filters').style.display = allGamesData.length ? 'block' : 'none';
+    if(allGamesData.length){
+      var hasTourney = allGamesData.some(function(g){return g.league==='tournament';});
+      filterOdds(hasTourney ? 'tournament' : currentOddsFilter);
+    }
+    var age = Math.floor(getCacheAge()/60);
+    document.getElementById('last-updated').textContent='Updated '+new Date(oddsCache.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+' · '+allGamesData.length+' games (cached)';
+    updateCacheUI();
+    btn.disabled=false; btn.textContent='↻';
+    return;
+  }
+
+  // ── Cache expired or empty — fetch fresh ──
   document.getElementById('odds-loading').style.display='block';
   document.getElementById('odds-list').innerHTML='';
   document.getElementById('odds-error').style.display='none';
@@ -682,22 +747,28 @@ async function fetchOdds(){
     tourneyData.forEach(function(g){g._league='tournament';});
     var combined=ncaabData.concat(tourneyData);
     combined.sort(function(a,b){return new Date(a.commence_time)-new Date(b.commence_time);});
+
+    // Store in cache
+    oddsCache = {data: combined, timestamp: Date.now()};
+    startCacheTimer();
+
     window.lastGamesData=combined;
     allGamesData=combined.map(transformGame).filter(Boolean);
     document.getElementById('odds-loading').style.display='none';
     if(!allGamesData.length){
-      document.getElementById('odds-list').innerHTML='<div class="empty">No NCAA games with odds right now.<br/><span style="font-size:11px">Odds appear ~1 week before games.<br/>Use IMPORT to paste odds manually.</span></div>';
+      document.getElementById('odds-list').innerHTML='<div class="empty">No NCAA games with odds right now.<br/><span style="font-size:11px">Odds appear ~1 week before games.<br/>Use KEYS tab to paste odds manually.</span></div>';
     } else {
       document.getElementById('odds-filters').style.display='block';
       filterOdds(tourneyData.length>0?'tournament':'all');
     }
     var now=new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
     document.getElementById('last-updated').textContent='Updated '+now+' · '+allGamesData.length+' games';
+    updateCacheUI();
   }catch(e){
     document.getElementById('odds-loading').style.display='none';
     renderOddsError(e.message);
   }
-  btn.disabled=false;btn.textContent='↻';
+  btn.disabled=false; btn.textContent='↻';
 }
 
 function renderOddsError(msg){
