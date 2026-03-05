@@ -223,6 +223,7 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
       <button class="tab" data-tab="calc" onclick="switchTab('calc')">CALC</button>
       <button class="tab" data-tab="history" onclick="switchTab('history')">LOG</button>
       <button class="tab" data-tab="stats" onclick="switchTab('stats')">STATS</button>
+      <button class="tab" data-tab="accuracy" onclick="switchTab('accuracy')">ACC</button>
       <button class="tab" data-tab="import" onclick="switchTab('import')">KEYS</button>
       <button id="refresh-btn" onclick="refreshAll()">↻</button>
     </div>
@@ -463,6 +464,21 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
       <div style="margin-bottom:12px">
         <button onclick="showSetup()" style="background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;padding:7px 14px;font-size:11px;font-weight:700;letter-spacing:1px">⚙ CHANGE API KEY</button>
       </div>
+
+      <!-- Bankroll Setting -->
+      <div style="background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:14px;margin-bottom:14px">
+        <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:10px">💰 BANKROLL (for Kelly bet sizing)</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="position:relative;flex:1">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#7a8fa6;font-size:14px">$</span>
+            <input id="bankroll-input" type="number" placeholder="500" min="1"
+              style="width:100%;background:#080c17;border:1px solid #1e2e40;border-radius:8px;color:#fff;padding:9px 10px 9px 24px;font-size:16px;font-family:inherit"/>
+          </div>
+          <button onclick="saveBankroll()" style="padding:9px 16px;background:#f59e0b;border:none;border-radius:8px;color:#080c17;font-size:11px;font-weight:700;font-family:inherit">SAVE</button>
+        </div>
+        <div id="bankroll-saved-msg" style="font-size:10px;color:#38bdf8;margin-top:6px;display:none">✓ Bankroll saved — pick cards will show Half Kelly bet sizes</div>
+        <div style="font-size:10px;color:#445566;margin-top:6px;line-height:1.6">Half Kelly sizing recommends optimal bet amounts based on your edge. Enter your total betting bankroll — not per-game budget.</div>
+      </div>
       <p class="import-hint">Paste odds from ESPN, Vegas Insider, or Action Network.<br/><span>Format: Team1 -150 Team2 +130</span></p>
       <textarea id="paste-area" placeholder="Example:&#10;Duke -145 UNC +125&#10;Kansas +110 Houston -130&#10;Purdue -160 Tennessee +140"></textarea>
       <button class="parse-btn" onclick="parseOdds()">PARSE ODDS</button>
@@ -577,6 +593,25 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
     </div>
 
 
+    <!-- ACCURACY -->
+    <div id="tab-accuracy" class="tab-content" style="display:none">
+      <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:14px">PICK ACCURACY TRACKER</div>
+
+      <!-- Summary cards -->
+      <div id="accuracy-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px"></div>
+
+      <!-- By type breakdown -->
+      <div id="accuracy-breakdown" style="background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:14px;margin-bottom:14px"></div>
+
+      <!-- Recent graded picks -->
+      <div style="font-size:10px;color:#7a8fa6;letter-spacing:1px;margin-bottom:8px">RECENTLY GRADED PICKS</div>
+      <div id="accuracy-recent"></div>
+
+      <div style="margin-top:14px;text-align:center">
+        <button onclick="clearPickAccuracy()" style="background:transparent;border:1px solid #334;border-radius:8px;color:#445566;padding:7px 14px;font-size:10px;font-weight:700;font-family:inherit">CLEAR ACCURACY DATA</button>
+      </div>
+    </div>
+
     <div id="tab-history" class="tab-content" style="display:none">
       <div class="stats-row">
         <div class="stat-box"><div class="stat-label">WIN RATE</div><div class="stat-val" id="h-winrate" style="color:#60a5fa">—</div></div>
@@ -618,6 +653,194 @@ function calcParlay(legs){
 
 // ══ SETUP ══
 var CLAUDE_KEY = localStorage.getItem('claudeApiKey') || '';
+var BANKROLL = parseFloat(localStorage.getItem('bankroll')) || 0;
+
+// ══ LINE MOVEMENT ══
+// Stores previous odds snapshot: {gameId: {homeML, awayML, spread, total}}
+var prevOddsSnapshot = JSON.parse(localStorage.getItem('prevOddsSnapshot') || '{}');
+
+function saveOddsSnapshot(){
+  var snap = {};
+  allGamesData.forEach(function(g){
+    snap[g.id] = {homeML:g.homeML, awayML:g.awayML, spread:g.spread, total:g.total};
+  });
+  localStorage.setItem('prevOddsSnapshot', JSON.stringify(snap));
+}
+
+function getLineMovement(gameId, field, current){
+  var prev = prevOddsSnapshot[gameId];
+  if(!prev || prev[field] == null || current == null) return null;
+  var diff = current - prev[field];
+  if(Math.abs(diff) < 0.05) return null; // no meaningful move
+  return {diff: diff, prev: prev[field], current: current};
+}
+
+// ══ BANKROLL / KELLY ══
+function saveBankroll(){
+  var val = parseFloat(document.getElementById('bankroll-input').value)||0;
+  if(!val||val<1){alert('Please enter a valid bankroll amount.');return;}
+  BANKROLL = val;
+  localStorage.setItem('bankroll', val);
+  var msg = document.getElementById('bankroll-saved-msg');
+  msg.style.display='block';
+  setTimeout(function(){msg.style.display='none';},3000);
+}
+
+function halfKelly(edgePct, odds){
+  // Kelly % = (edge * (decimal_odds) - (1-edge)) / (decimal_odds - 1)
+  // Simplified: f = (b*p - q) / b  where b=decimal-1, p=win prob, q=lose prob
+  if(!BANKROLL || !edgePct) return null;
+  var edge = parseFloat(edgePct)/100;
+  var dec = aToDec(odds);
+  var b = dec - 1;
+  var p = (edge + (1/dec)); // estimated win prob from edge + implied
+  p = Math.min(Math.max(p, 0.01), 0.99);
+  var q = 1 - p;
+  var kelly = (b*p - q) / b;
+  if(kelly <= 0) return null;
+  var half = kelly / 2; // half kelly
+  var betAmt = Math.max(1, Math.round(BANKROLL * half));
+  return {pct: (half*100).toFixed(1), amt: betAmt};
+}
+
+// ══ PICK ACCURACY ══
+var pickAccuracy = JSON.parse(localStorage.getItem('pickAccuracy') || '[]');
+// Each entry: {id, date, gameId, gameLabel, type, typeLabel, pick, odds, edge, stars, result, gradedAt}
+// result: 'win'|'loss'|'push'|null (null = pending)
+
+function savePickAccuracy(){ localStorage.setItem('pickAccuracy', JSON.stringify(pickAccuracy)); }
+
+function logPicksForAccuracy(picks){
+  var today = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  picks.filter(function(p){return !p.isParlay;}).forEach(function(p){
+    var existingId = 'acc-'+p.game.id+'-'+p.type;
+    var exists = pickAccuracy.find(function(a){return a.id===existingId;});
+    if(!exists){
+      pickAccuracy.unshift({
+        id: existingId,
+        date: today,
+        gameId: p.game.id,
+        gameLabel: (p.game.away||'?')+' @ '+(p.game.home||'?'),
+        type: p.type,
+        typeLabel: p.typeLabel,
+        pick: p.pick,
+        odds: p.odds,
+        edge: p.edge,
+        stars: p.stars,
+        result: null,
+        gradedAt: null
+      });
+    }
+  });
+  // Keep last 200
+  if(pickAccuracy.length > 200) pickAccuracy = pickAccuracy.slice(0,200);
+  savePickAccuracy();
+}
+
+function gradePickAccuracy(id, result){
+  if(!id) return;
+  var entry = pickAccuracy.find(function(a){return a.id===id;});
+  if(!entry) return;
+  entry.result = result;
+  entry.gradedAt = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  savePickAccuracy();
+  renderAccuracyTab();
+}
+
+function clearPickAccuracy(){
+  if(!confirm('Clear all pick accuracy data?')) return;
+  pickAccuracy = [];
+  savePickAccuracy();
+  renderAccuracyTab();
+}
+
+function renderAccuracyTab(){
+  var graded = pickAccuracy.filter(function(a){return a.result;});
+  var pending = pickAccuracy.filter(function(a){return !a.result;});
+  var wins = graded.filter(function(a){return a.result==='win';}).length;
+  var losses = graded.filter(function(a){return a.result==='loss';}).length;
+  var pushes = graded.filter(function(a){return a.result==='push';}).length;
+  var total = wins+losses+pushes;
+  var winPct = total ? (wins/total*100).toFixed(1) : '--';
+  var breakeven = 52.4;
+  var pctColor = total && parseFloat(winPct)>=breakeven ? '#34d399' : '#f97316';
+
+  // Summary cards
+  var summaryEl = document.getElementById('accuracy-summary');
+  if(!summaryEl) return;
+  summaryEl.innerHTML =
+    card('#f59e0b', total||'0', 'GRADED PICKS') +
+    card(pctColor, (total?winPct+'%':'--'), 'WIN RATE') +
+    card('#34d399', wins, 'WINS') +
+    card('#f97316', losses, 'LOSSES');
+
+  function card(col, val, lbl){
+    return '<div style="background:#111825;border:1px solid #1a2a3a;border-radius:12px;padding:12px;text-align:center">'
+      +'<div style="font-size:22px;font-weight:700;color:'+col+'">'+val+'</div>'
+      +'<div style="font-size:9px;color:#556677;letter-spacing:1px;margin-top:3px">'+lbl+'</div>'
+      +'</div>';
+  }
+
+  // Breakdown by type
+  var types = ['ml','spread','ou','mismatch'];
+  var typeLabels = {ml:'MONEYLINE',spread:'SPREAD',ou:'OVER/UNDER',mismatch:'MISMATCH'};
+  var typeColors = {ml:'#38bdf8',spread:'#c084fc',ou:'#34d399',mismatch:'#f97316'};
+  var breakdownHtml = '<div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:12px">BY BET TYPE</div>';
+  if(!graded.length){
+    breakdownHtml += '<div style="font-size:12px;color:#445566;text-align:center;padding:10px">No graded picks yet.<br/>Grade picks below as they resolve.</div>';
+  } else {
+    types.forEach(function(t){
+      var tGraded = graded.filter(function(a){return a.type===t;});
+      if(!tGraded.length) return;
+      var tW = tGraded.filter(function(a){return a.result==='win';}).length;
+      var tL = tGraded.filter(function(a){return a.result==='loss';}).length;
+      var tPct = ((tW/tGraded.length)*100).toFixed(0);
+      var col = typeColors[t]||'#7a8fa6';
+      var profitable = parseFloat(tPct) >= breakeven;
+      breakdownHtml += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+        +'<div style="font-size:9px;color:'+col+';width:80px;letter-spacing:1px">'+typeLabels[t]+'</div>'
+        +'<div style="flex:1;height:6px;background:#1a2535;border-radius:3px">'
+        +'<div style="height:6px;border-radius:3px;background:'+col+';width:'+tPct+'%"></div></div>'
+        +'<div style="font-size:11px;font-weight:700;color:'+(profitable?'#34d399':'#f97316')+';width:36px;text-align:right">'+tPct+'%</div>'
+        +'<div style="font-size:10px;color:#556677;width:28px;text-align:right">'+tW+'-'+tL+'</div>'
+        +'</div>';
+    });
+    breakdownHtml += '<div style="font-size:9px;color:#334455;margin-top:4px">Breakeven at -110 odds = 52.4%</div>';
+  }
+  document.getElementById('accuracy-breakdown').innerHTML = breakdownHtml;
+
+  // Recent picks list
+  var recentEl = document.getElementById('accuracy-recent');
+  if(!pickAccuracy.length){
+    recentEl.innerHTML = '<div class="empty" style="font-size:12px">No picks logged yet.<br/>Picks auto-log when you generate them on the PICKS tab.</div>';
+    return;
+  }
+
+  // Show pending first, then graded
+  var sorted = pending.concat(graded.slice(0,20));
+  recentEl.innerHTML = sorted.map(function(a){
+    var resColor = a.result==='win'?'#34d399':a.result==='loss'?'#f97316':a.result==='push'?'#f59e0b':'#556677';
+    var resLabel = a.result ? a.result.toUpperCase() : 'PENDING';
+    var col = typeColors[a.type]||'#7a8fa6';
+    return '<div style="background:#111825;border:1px solid #1a2535;border-left:3px solid '+col+';border-radius:10px;padding:11px;margin-bottom:8px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
+      +'<div>'
+      +'<div style="font-size:11px;color:#e0e6f0;font-weight:700">'+a.gameLabel+'</div>'
+      +'<div style="font-size:10px;color:#556677;margin-top:2px">'+a.date+' · '+a.typeLabel+'</div>'
+      +'</div>'
+      +'<span style="font-size:9px;font-weight:700;color:'+resColor+';background:'+resColor+'22;padding:3px 8px;border-radius:8px">'+resLabel+'</span>'
+      +'</div>'
+      +'<div style="font-size:12px;color:#c0ccd8;margin-bottom:6px">'+a.pick+' <span style="color:'+(a.odds>0?'#38bdf8':'#c084fc')+'">'+fmt(a.odds)+'</span>'
+      +' <span style="font-size:10px;color:#556677">· Edge: '+a.edge+'% · '+a.stars+'★</span></div>'
+      +(!a.result ? '<div style="display:flex;gap:6px">'
+        +'<button onclick="gradePickAccuracy(this.dataset.id,\'win\')" data-id="'+a.id+'" style="flex:1;padding:5px;background:rgba(52,211,153,0.1);border:1px solid #34d399;border-radius:6px;color:#34d399;font-size:10px;font-weight:700;font-family:inherit">WIN</button>'
+        +'<button onclick="gradePickAccuracy(this.dataset.id,\'loss\')" data-id="'+a.id+'" style="flex:1;padding:5px;background:rgba(249,115,22,0.1);border:1px solid #f97316;border-radius:6px;color:#f97316;font-size:10px;font-weight:700;font-family:inherit">LOSS</button>'
+        +'<button onclick="gradePickAccuracy(this.dataset.id,\'push\')" data-id="'+a.id+'" style="flex:1;padding:5px;background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:6px;color:#f59e0b;font-size:10px;font-weight:700;font-family:inherit">PUSH</button>'
+        +'</div>' : '')
+      +'</div>';
+  }).join('');
+}
+
 
 function saveApiKey(){
   var k=document.getElementById('api-key-input').value.trim();
@@ -655,6 +878,10 @@ function initApp(){
   renderHistory();
   renderPendingBets();
   updateBetsBadge();
+  renderAccuracyTab();
+  // Pre-fill bankroll input if saved
+  var bankrollInput = document.getElementById('bankroll-input');
+  if(bankrollInput && BANKROLL) bankrollInput.value = BANKROLL;
   if(API_KEY){ fetchOdds(); checkPendingBets(); generatePicks(); startCacheTimer(); }
   else renderOddsError('add_key');
   switchTab('odds');
@@ -696,7 +923,7 @@ function updateCacheUI(){
     if(forceBtn) forceBtn.style.display='block';
   } else {
     statusEl.style.color='#38bdf8';
-    statusEl.textContent='Cache expired — tap ↻ to refresh';
+    statusEl.textContent='Cache expired  -  tap ↻ to refresh';
     if(forceBtn) forceBtn.style.display='none';
   }
 }
@@ -769,7 +996,7 @@ async function fetchOdds(){
     return;
   }
 
-  // ── Cache expired or empty — fetch fresh ──
+  // ── Cache expired or empty  -  fetch fresh ──
   document.getElementById('odds-loading').style.display='block';
   document.getElementById('odds-list').innerHTML='';
   document.getElementById('odds-error').style.display='none';
@@ -788,6 +1015,8 @@ async function fetchOdds(){
     var combined=ncaabData.concat(tourneyData);
     combined.sort(function(a,b){return new Date(a.commence_time)-new Date(b.commence_time);});
 
+    // Store line movement snapshot BEFORE overwriting data
+    saveOddsSnapshot();
     // Store in cache
     oddsCache = {data: combined, timestamp: Date.now()};
     startCacheTimer();
@@ -815,9 +1044,9 @@ function renderOddsError(msg){
   var el=document.getElementById('odds-error');
   el.style.display='block';
   if(msg==='add_key'){
-    el.innerHTML='<div class="alert-yellow"><strong>⚙ No API Key Set</strong>Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:#60a5fa">the-odds-api.com</a> (takes 2 min).<br/>Then tap <strong>IMPORT → Change API Key</strong> to enter it.<br/><br/><span style="color:#a0b4c8;font-size:11px">Until then, paste odds manually in the IMPORT tab.</span></div>';
+    el.innerHTML='<div class="alert-yellow"><strong>&#x2699; No API Key Set</strong>Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:#60a5fa">the-odds-api.com</a> (takes 2 min).<br/>Then tap <strong>IMPORT -> Change API Key</strong> to enter it.<br/><br/><span style="color:#a0b4c8;font-size:11px">Until then, paste odds manually in the IMPORT tab.</span></div>';
   } else {
-    el.innerHTML='<div class="alert-red">Error: '+msg+' — <span onclick="fetchOdds()" style="text-decoration:underline;cursor:pointer">retry</span></div>';
+    el.innerHTML='<div class="alert-red">Error: '+msg+'  -  <span onclick="fetchOdds()" style="text-decoration:underline;cursor:pointer">retry</span></div>';
   }
 }
 
@@ -909,7 +1138,7 @@ function renderSlip(){
   legsEl.innerHTML=betSlip.map(function(b){
     return '<div class="slip-leg"><div><div class="leg-label">'+b.label+'</div><div class="leg-implied">Implied '+implied(b.odds)+'%</div></div>'
       +'<div style="display:flex;align-items:center;gap:10px"><span class="leg-odds '+(b.odds>0?'dog':'fav-c')+'">'+fmt(b.odds)+'</span>'
-      +'<button class="remove-btn" onclick="removeSlipItem(\''+b.key+'\')">✕</button></div></div>';
+      +'<button class="remove-btn" onclick="removeSlipItem(\''+b.key+'\')">X</button></div></div>';
   }).join('');
   updateSlipSummary();
 }
@@ -947,7 +1176,7 @@ function renderParlayLegs(){
     return '<div class="parlay-leg-row"><div class="leg-num">L'+(i+1)+'</div>'
       +'<input class="leg-input '+(l.odds>0?'dog':'fav-c')+'" type="number" value="'+l.odds+'" oninput="updateParlayLeg('+l.id+',this.value)"/>'
       +'<div class="leg-pct">'+implied(l.odds)+'%</div>'
-      +'<button class="remove-leg" onclick="removeParlayLeg('+l.id+')">✕</button></div>';
+      +'<button class="remove-leg" onclick="removeParlayLeg('+l.id+')">X</button></div>';
   }).join('');
 }
 function addParlayLeg(){parlayLegs.push({id:parlayLegId++,odds:-110});renderParlayLegs();updateParlay();}
@@ -1201,7 +1430,7 @@ function runMatchup(){
   var net1 = s1.ortg - s1.drtg;
   var net2 = s2.ortg - s2.drtg;
   var netDiff = net1 - net2;
-  // Each point of net rating ≈ ~3% win probability shift from 50%
+  // Each point of net rating ~ ~3% win probability shift from 50%
   var winProb1 = Math.min(Math.max(50 + netDiff * 3, 5), 95);
   var winProb2 = 100 - winProb1;
   var statFavorite = winProb1 >= winProb2 ? matchupTeam1 : matchupTeam2;
@@ -1223,8 +1452,8 @@ function runMatchup(){
       +'<div style="font-size:11px;color:#a0b4c8;margin-bottom:6px">Stats imply: <strong style="color:#fff">'+matchupTeam1+'</strong> win prob <strong style="color:#60a5fa">'+winProb1.toFixed(0)+'%</strong> · Market: <strong style="color:#60a5fa">'+impliedProb1.toFixed(0)+'%</strong></div>'
       +'<div style="font-size:11px;color:#a0b4c8;margin-bottom:8px">Stats imply: <strong style="color:#fff">'+matchupTeam2+'</strong> win prob <strong style="color:#60a5fa">'+winProb2.toFixed(0)+'%</strong> · Market: <strong style="color:#60a5fa">'+impliedProb2.toFixed(0)+'%</strong></div>'
       +(hasValue
-        ?'<div style="font-size:13px;font-weight:700;color:#38bdf8">⚡ VALUE BET: '+valuePick+' '+valueOdds+' (+'+valueEdge+'% edge over market)</div>'
-        :'<div style="font-size:12px;color:#a0b4c8">No significant value detected — odds match statistical expectation.</div>')
+        ?'<div style="font-size:13px;font-weight:700;color:#38bdf8">&#x26A1; VALUE BET: '+valuePick+' '+valueOdds+' (+'+valueEdge+'% edge over market)</div>'
+        :'<div style="font-size:12px;color:#a0b4c8">No significant value detected  -  odds match statistical expectation.</div>')
       +'</div>';
   }
 
@@ -1377,7 +1606,7 @@ function parseBulkImport(){
   }
   if(errors.length){
     html += '<div style="background:#1a0a0a;border:1px solid #f9731633;border-radius:8px;padding:10px">'
-      +'<div style="font-size:10px;color:#f97316;letter-spacing:1px;margin-bottom:6px">⚠ COULD NOT PARSE '+errors.length+' LINE'+(errors.length>1?'S':'')+'</div>'
+      +'<div style="font-size:10px;color:#f97316;letter-spacing:1px;margin-bottom:6px">&#x26A0; COULD NOT PARSE '+errors.length+' LINE'+(errors.length>1?'S':'')+'</div>'
       +'<div style="font-size:11px;color:#7a8fa6">'+errors.join('<br/>')+'</div>'
       +'<div style="font-size:10px;color:#445566;margin-top:4px">Format: TeamName, AdjOE, AdjDE, Tempo</div>'
       +'</div>';
@@ -1390,7 +1619,7 @@ function clearBulkCustomStats(){
   if(!confirm('Reset ALL custom stats back to defaults? This cannot be undone.')) return;
   localStorage.removeItem('teamStatsCustom');
   teamStats = {};
-  document.getElementById('bulk-import-result').innerHTML='<div style="color:#f97316;padding:8px;font-size:12px">✓ All custom stats cleared — defaults restored.</div>';
+  document.getElementById('bulk-import-result').innerHTML='<div style="color:#f97316;padding:8px;font-size:12px">✓ All custom stats cleared  -  defaults restored.</div>';
 }
 
 // ══ REFRESH ALL ══
@@ -1427,7 +1656,7 @@ function hideAddBetForm(){
 }
 function clearBetForm(){
   ['bet-team','bet-opponent','bet-spread','bet-total','bet-parlay-desc','bet-odds','bet-wager'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('bet-to-win').textContent='—';
+  document.getElementById('bet-to-win').textContent=' - ';
   selectBetType('ml');
 }
 function selectBetType(type){
@@ -1446,7 +1675,7 @@ function selectBetType(type){
 function updateToWin(){
   var odds=parseInt(document.getElementById('bet-odds').value)||0;
   var wager=parseFloat(document.getElementById('bet-wager').value)||0;
-  if(!odds||!wager){document.getElementById('bet-to-win').textContent='—';return;}
+  if(!odds||!wager){document.getElementById('bet-to-win').textContent=' - ';return;}
   document.getElementById('bet-to-win').textContent='+$'+(wager*(aToDec(odds)-1)).toFixed(2);
 }
 function savePendingBet(){
@@ -1504,13 +1733,13 @@ function renderPendingBets(){
     var timeStr=gameTime.toLocaleDateString([],{month:'short',day:'numeric'})+' '+gameTime.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
     var profit=(b.wager*(aToDec(b.odds)-1)).toFixed(2);
     var statusColor=isPast?'#f59e0b':'#38bdf8';
-    var statusLabel=isPast?'⏱ AWAITING RESULT':'🕐 UPCOMING';
+    var statusLabel=isPast?'&#x23F1; AWAITING RESULT':'&#x1F550; UPCOMING';
     return '<div style="background:#111825;border:1px solid '+(isPast?'#f59e0b33':'#1a2a3a')+';border-left:3px solid '+(isPast?'#f59e0b':'#38bdf8')+';border-radius:12px;padding:14px;margin-bottom:10px">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:9px;color:'+statusColor+';font-weight:700;letter-spacing:1px">'+statusLabel+'</span><span style="font-size:10px;color:#7a8fa6">'+timeStr+'</span></div>'
       +'<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">'+b.label+'</div>'
       +'<div style="font-size:11px;color:#7a8fa6;margin-bottom:10px">Odds: <span style="color:'+(b.odds>0?'#38bdf8':'#c084fc')+';font-weight:700">'+fmt(b.odds)+'</span> · Wager: <span style="color:#fff;font-weight:600">$'+b.wager+'</span> · To Win: <span style="color:#38bdf8;font-weight:700">+$'+profit+'</span></div>'
       +(isPast
-        ?'<div style="display:flex;gap:6px"><button onclick="manualResolveBet('+b.id+',\'Win\')" style="flex:1;padding:8px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;border-radius:8px;color:#38bdf8;font-size:11px;font-weight:700;font-family:inherit">✓ WIN</button><button onclick="manualResolveBet('+b.id+',\'Loss\')" style="flex:1;padding:8px;background:rgba(249,115,22,0.15);border:1px solid #f97316;border-radius:8px;color:#f97316;font-size:11px;font-weight:700;font-family:inherit">✗ LOSS</button><button onclick="manualResolveBet('+b.id+',\'Push\')" style="flex:1;padding:8px;background:rgba(161,161,170,0.1);border:1px solid #52525b;border-radius:8px;color:#a1a1aa;font-size:11px;font-weight:700;font-family:inherit">↔ PUSH</button><button onclick="deletePendingBet('+b.id+')" style="padding:8px 10px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">🗑</button></div>'
+        ?'<div style="display:flex;gap:6px"><button onclick="manualResolveBet('+b.id+',\'Win\')" style="flex:1;padding:8px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;border-radius:8px;color:#38bdf8;font-size:11px;font-weight:700;font-family:inherit">✓ WIN</button><button onclick="manualResolveBet('+b.id+',\'Loss\')" style="flex:1;padding:8px;background:rgba(249,115,22,0.15);border:1px solid #f97316;border-radius:8px;color:#f97316;font-size:11px;font-weight:700;font-family:inherit">✗ LOSS</button><button onclick="manualResolveBet('+b.id+',\'Push\')" style="flex:1;padding:8px;background:rgba(161,161,170,0.1);border:1px solid #52525b;border-radius:8px;color:#a1a1aa;font-size:11px;font-weight:700;font-family:inherit"><-> PUSH</button><button onclick="deletePendingBet('+b.id+')" style="padding:8px 10px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">&#x1F5D1;</button></div>'
         :'<button onclick="deletePendingBet('+b.id+')" style="padding:7px 14px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">Remove</button>'
       )+'</div>';
   }).join('');
@@ -1551,7 +1780,7 @@ function showToast(msg){
 }
 
 // ══ FUZZY TEAM STAT LOOKUP ══
-// Matches "Kansas Jayhawks" → "Kansas", "North Carolina Tar Heels" → "North Carolina" etc.
+// Matches "Kansas Jayhawks" -> "Kansas", "North Carolina Tar Heels" -> "North Carolina" etc.
 function findTeamStats(fullName){
   // 1. Exact match first
   var exact = getTeamStats(fullName);
@@ -1575,14 +1804,14 @@ function findTeamStats(fullName){
     if(wordMatch) return getTeamStats(wordMatch);
   }
 
-  // 4. No stats found — generate estimated stats from team's implied win probability via odds
+  // 4. No stats found  -  generate estimated stats from team's implied win probability via odds
   // This lets picks work for ALL games even without stats data
   return null; // caller handles null with odds-only analysis
 }
 
 // Generate a pick using only odds (no stats DB required)
 function oddsOnlyPick(g){
-  // Use implied probability gap as a signal — heavy favorites are worth noting
+  // Use implied probability gap as a signal  -  heavy favorites are worth noting
   var homeImpl = 1/aToDec(g.homeML)*100;
   var awayImpl = 1/aToDec(g.awayML)*100;
   var overround = homeImpl + awayImpl; // should be ~105-110%
@@ -1602,7 +1831,7 @@ function oddsOnlyPick(g){
     pick:favTeam+' ML', odds:favOdds,
     stars:stars,
     edge:(favProb - (favOdds<0?Math.abs(favOdds)/(Math.abs(favOdds)+100)*100:100/(favOdds+100)*100)).toFixed(1),
-    reason:'Market prices '+favTeam+' at '+favProb.toFixed(0)+'% true win probability — strong favorite',
+    reason:'Market prices '+favTeam+' at '+favProb.toFixed(0)+'% true win probability  -  strong favorite',
     sortScore: favProb * stars * 0.5 // lower weight than stats-backed picks
   };
 }
@@ -1645,7 +1874,7 @@ async function generatePicks(){
   allPicks = [];
 
   games.forEach(function(g){
-    // Fuzzy match team names to stats DB — "Kansas Jayhawks" matches "Kansas"
+    // Fuzzy match team names to stats DB  -  "Kansas Jayhawks" matches "Kansas"
     var s1 = findTeamStats(g.home);
     var s2 = findTeamStats(g.away);
 
@@ -1667,14 +1896,14 @@ async function generatePicks(){
           pick:bestML.team+' ML', odds:bestML.odds,
           stars:stars,
           edge:bestML.edge.toFixed(1),
-          reason:bestML.team+' stats imply '+bestML.prob.toFixed(0)+'% win prob vs '+homeImplied.toFixed(0)+'% market — '+Math.abs(bestML.edge).toFixed(1)+'% edge',
+          reason:bestML.team+' stats imply '+bestML.prob.toFixed(0)+'% win prob vs '+homeImplied.toFixed(0)+'% market  -  '+Math.abs(bestML.edge).toFixed(1)+'% edge',
           sortScore: Math.abs(bestML.edge) * stars
         });
       }
 
       // ── 2. SPREAD VALUE PICK ──
       if(g.spread != null){
-        // Estimate expected margin from net rating diff (each 1pt net ≈ 0.4pt margin per game)
+        // Estimate expected margin from net rating diff (each 1pt net ~ 0.4pt margin per game)
         var expectedMargin = netDiff * 0.4;
         var spreadLine = -g.spread; // negative spread means home favored by that many
         var spreadEdge = expectedMargin - spreadLine;
@@ -1717,9 +1946,9 @@ async function generatePicks(){
         var ouEdge = projTotal - g.total;
         var ouPick, ouReason;
         if(ouEdge > 3){
-          ouPick = 'Over '+g.total; ouReason = 'Projected total '+projTotal.toFixed(1)+' pts — both teams pace well above line ('+g.total+')';
+          ouPick = 'Over '+g.total; ouReason = 'Projected total '+projTotal.toFixed(1)+' pts  -  both teams pace well above line ('+g.total+')';
         } else if(ouEdge < -3){
-          ouPick = 'Under '+g.total; ouReason = 'Projected total '+projTotal.toFixed(1)+' pts — defensive matchup suggests game stays under '+g.total;
+          ouPick = 'Under '+g.total; ouReason = 'Projected total '+projTotal.toFixed(1)+' pts  -  defensive matchup suggests game stays under '+g.total;
         }
         if(ouPick){
           var ouStars = edgeToStars(Math.abs(ouEdge), 3, 6, 10);
@@ -1748,12 +1977,12 @@ async function generatePicks(){
           odds: net1>net2 ? g.homeML : g.awayML,
           stars:mismatchStars,
           edge:netGap.toFixed(1),
-          reason:strongTeam+' Net Rtg +'+strongNet+' vs '+weakTeam+' '+weakNet+' — '+netGap.toFixed(0)+' pt gap signals potential blowout',
+          reason:strongTeam+' Net Rtg +'+strongNet+' vs '+weakTeam+' '+weakNet+'  -  '+netGap.toFixed(0)+' pt gap signals potential blowout',
           sortScore: netGap * mismatchStars
         });
       }
     } else {
-      // No stats available — use odds-only analysis as fallback
+      // No stats available  -  use odds-only analysis as fallback
       var oddsPick = oddsOnlyPick(g);
       if(oddsPick) allPicks.push(oddsPick);
     }
@@ -1776,7 +2005,7 @@ async function generatePicks(){
       odds: parlayOdds.american,
       stars: Math.min(parlayCandidates[0].stars, 3),
       edge: parlayCandidates.reduce(function(a,p){return a+parseFloat(p.edge);},0).toFixed(1),
-      reason: parlayCandidates.map(function(p){return p.pick;}).join(' + ')+' — combined '+parlayOdds.prob+'% implied prob',
+      reason: parlayCandidates.map(function(p){return p.pick;}).join(' + ')+'  -  combined '+parlayOdds.prob+'% implied prob',
       sortScore: 999, // always show parlay
       isParlay: true,
       legs: parlayCandidates
@@ -1830,24 +2059,49 @@ function renderPicks(){
     var edgeStr = edgeNum > 0 ? '+'+p.edge+'%' : p.edge+'%';
     var isValueBet = edgeNum > 0 && p.type !== 'mismatch' && p.type !== 'parlay';
 
+    // ── Line movement ──
+    var movHtml = '';
+    if(p.game && p.game.id){
+      var movField = p.type==='spread' ? 'spread' : p.type==='ou' ? 'total' : (p.pick.indexOf(p.game&&p.game.home)>=0 ? 'homeML' : 'awayML');
+      var movVal = p.type==='spread' ? p.game.spread : p.type==='ou' ? p.game.total : p.odds;
+      var mov = getLineMovement(p.game.id, movField, movVal);
+      if(mov){
+        var arrow = mov.diff > 0 ? '▲' : '▼';
+        var movColor = mov.diff > 0 ? '#34d399' : '#f97316';
+        movHtml = ' <span style="font-size:11px;color:'+movColor+'" title="Moved from '+mov.prev+' to '+mov.current+'">'+arrow+' '+Math.abs(mov.diff).toFixed(1)+'</span>';
+      }
+    }
+
+    // ── Half Kelly sizing ──
+    var kellyHtml = '';
+    if(BANKROLL && isValueBet){
+      var k = halfKelly(p.edge, p.odds);
+      if(k) kellyHtml = '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:7px 10px;background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.25);border-radius:8px">'
+        +'<span style="font-size:9px;color:#f59e0b;letter-spacing:1px;flex-shrink:0">½ KELLY</span>'
+        +'<span style="font-size:14px;font-weight:700;color:#f59e0b">$'+k.amt+'</span>'
+        +'<span style="font-size:9px;color:#556677">'+k.pct+'% of $'+BANKROLL+' bankroll</span>'
+        +'</div>';
+    }
+
     return '<div style="background:#111825;border:1px solid #1a2a3a;border-left:3px solid '+col+';border-radius:12px;padding:14px;margin-bottom:10px">'
-      // Rank + type badge
+      // Rank + type badge row
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-      +'<div style="display:flex;align-items:center;gap:8px">'
+      +'<div style="display:flex;align-items:center;gap:6px">'
       +'<span style="font-size:10px;color:#7a8fa6;font-weight:700">#'+(i+1)+'</span>'
       +'<span style="font-size:9px;color:'+col+';font-weight:700;letter-spacing:1px;background:'+col+'22;padding:3px 8px;border-radius:10px">'+p.typeLabel+'</span>'
-      +(isValueBet?'<span style="font-size:9px;color:#f59e0b;font-weight:700;letter-spacing:1px;background:rgba(245,158,11,0.15);padding:3px 8px;border-radius:10px">VALUE</span>':'')
+      +(isValueBet?'<span style="font-size:9px;color:#f59e0b;font-weight:700;background:rgba(245,158,11,0.15);padding:3px 8px;border-radius:10px">VALUE</span>':'')
       +'</div>'
       +'<div style="font-size:13px">'+stars(p.stars)+'</div>'
       +'</div>'
-      // Game matchup — prominent header
+      // Game matchup header
       +'<div style="background:#0d1520;border-radius:8px;padding:8px 10px;margin-bottom:10px">'
       +'<div style="font-size:13px;font-weight:700;color:#e0e6f0">'+(p.game&&p.game.away?p.game.away:'?')+' <span style="color:#445566;font-weight:400">@</span> '+(p.game&&p.game.home?p.game.home:'?')+'</div>'
       +'<div style="font-size:10px;color:#556677;margin-top:2px">'+(p.game&&p.game.date?p.game.date:'')+(p.game&&p.game.time?' · '+p.game.time:'')+'</div>'
       +'</div>'
-      // Pick
+      // Pick line + line movement arrow
       +'<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px">'+p.pick
-      +'<span style="font-size:13px;font-weight:700;color:'+(p.odds>0?'#38bdf8':'#c084fc')+';margin-left:8px">'+fmt(p.odds)+'</span></div>'
+      +'<span style="font-size:13px;font-weight:700;color:'+(p.odds>0?'#38bdf8':'#c084fc')+';margin-left:8px">'+fmt(p.odds)+'</span>'
+      +movHtml+'</div>'
       // Reason
       +'<div style="font-size:11px;color:#94a3b8;margin-bottom:8px;line-height:1.5">'+p.reason+'</div>'
       // Edge bar
@@ -1856,7 +2110,9 @@ function renderPicks(){
         +'<div style="flex:1;height:4px;background:#1a2a3a;border-radius:2px"><div style="height:4px;border-radius:2px;background:'+col+';width:'+Math.min(Math.abs(edgeNum)*8,100)+'%"></div></div>'
         +'<div style="font-size:11px;font-weight:700;color:'+col+'">'+edgeStr+'</div>'
         +'</div>':'')
-      // Add to slip button
+      // Kelly sizing
+      +kellyHtml
+      // Add to slip
       +(!p.isParlay?'<button onclick="addPickToSlip(this)" '
         +'data-key="pick-'+p.game.id+'-'+p.type+'" '
         +'data-label="'+p.pick.replace(/"/g,'&quot;')+'" '
@@ -1919,7 +2175,7 @@ async function generateClaudeSummary(){
   if(!allPicks.length){ alert('Generate picks first by tapping ↻ REFRESH'); return; }
   if(!CLAUDE_KEY){ 
     document.getElementById('claude-summary-box').style.display='block';
-    document.getElementById('claude-summary-content').innerHTML='<span style="color:#f59e0b">No Claude API key set. Go to IMPORT → Change API Key to add your Claude key from <a href=\"https://console.anthropic.com\" target=\"_blank\" style=\"color:#818cf8\">console.anthropic.com</a>.</span>';
+    document.getElementById('claude-summary-content').innerHTML='<span style="color:#f59e0b">No Claude API key set. Go to IMPORT -> Change API Key to add your Claude key from <a href=\"https://console.anthropic.com\" target=\"_blank\" style=\"color:#818cf8\">console.anthropic.com</a>.</span>';
     return;
   }
 
@@ -1937,7 +2193,7 @@ async function generateClaudeSummary(){
   var topPicks = allPicks.filter(function(p){return !p.isParlay;}).slice(0,6);
   var picksContext = topPicks.map(function(p,i){
     var gameStr = p.game ? p.game.away+' @ '+p.game.home : 'Unknown matchup';
-    return (i+1)+'. '+p.typeLabel+' | '+gameStr+' | Pick: '+p.pick+' ('+fmt(p.odds)+') — '+p.reason+' ['+p.stars+' stars, edge: '+p.edge+'%]';
+    return (i+1)+'. '+p.typeLabel+' | '+gameStr+' | Pick: '+p.pick+' ('+fmt(p.odds)+')  -  '+p.reason+' ['+p.stars+' stars, edge: '+p.edge+'%]';
   }).join('\n');
 
   var parlayPick = allPicks.find(function(p){return p.isParlay;});
@@ -1978,11 +2234,11 @@ async function generateClaudeSummary(){
     var msg = e.message || 'Unknown error';
     var hint = '';
     if(msg.toLowerCase().indexOf('load')>-1 || msg.toLowerCase().indexOf('network')>-1 || msg.toLowerCase().indexOf('failed')>-1){
-      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Network error — Safari may be blocking the request. Try on WiFi or check your connection.</span>';
+      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Network error  -  Safari may be blocking the request. Try on WiFi or check your connection.</span>';
     } else if(msg.indexOf('401')>-1 || msg.toLowerCase().indexOf('auth')>-1){
-      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Invalid API key — go to KEYS tab and re-enter your Claude key.</span>';
+      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Invalid API key  -  go to KEYS tab and re-enter your Claude key.</span>';
     } else if(msg.indexOf('credit')>-1 || msg.indexOf('billing')>-1 || msg.indexOf('quota')>-1){
-      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Add credits at console.anthropic.com → Billing.</span>';
+      hint = '<br/><span style="font-size:11px;color:#7a8fa6">Add credits at console.anthropic.com -> Billing.</span>';
     }
     document.getElementById('claude-summary-content').innerHTML='<span style="color:#f97316">Error: '+msg+'</span>'+hint;
   }
@@ -2011,7 +2267,7 @@ function parseOdds(){
   });
   var el=document.getElementById('parsed-results');
   if(!parsed.length){el.innerHTML='<div class="alert-red" style="margin-top:12px">No odds detected. Format: Team -150 Team +130</div>';return;}
-  el.innerHTML='<div class="parsed-title">PARSED — '+parsed.length+' matchup'+(parsed.length>1?'s':'')+'</div>'
+  el.innerHTML='<div class="parsed-title">PARSED  -  '+parsed.length+' matchup'+(parsed.length>1?'s':'')+'</div>'
     +parsed.map(function(g){
       return g.home
         ?'<div class="parsed-card"><div><div style="font-size:13px;font-weight:600">'+g.away+'</div><div style="font-size:10px;color:#667788">vs '+g.home+'</div></div><div style="text-align:right"><div style="font-weight:700;color:'+(g.awayML>0?'#38bdf8':'#c084fc')+'">'+fmt(g.awayML)+'</div><div style="font-weight:700;color:'+(g.homeML>0?'#38bdf8':'#c084fc')+'">'+fmt(g.homeML)+'</div></div></div>'
@@ -2071,7 +2327,7 @@ function renderHistory(){
       +'<div style="text-align:right;margin-left:10px">'
       +'<div style="font-size:11px;font-weight:700;color:'+(h.result==='Win'?'#38bdf8':'#f97316')+'">'+h.result+'</div>'
       +'<div style="font-size:13px;font-weight:700;color:'+(h.result==='Win'?'#38bdf8':'#a0b4c8')+'">'+(h.result==='Win'?'$'+h.payout.toFixed(2):'-$'+h.wager)+'</div></div>'
-      +'<button onclick="deleteHistoryItem('+h.id+')" style="margin-left:10px;background:rgba(249,115,22,0.15);border:none;border-radius:6px;color:#f97316;padding:4px 8px;font-size:11px;font-family:inherit">✕</button>'
+      +'<button onclick="deleteHistoryItem('+h.id+')" style="margin-left:10px;background:rgba(249,115,22,0.15);border:none;border-radius:6px;color:#f97316;padding:4px 8px;font-size:11px;font-family:inherit">X</button>'
       +'</div>';
   }).join('');
 }
