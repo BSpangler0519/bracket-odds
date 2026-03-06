@@ -303,7 +303,10 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
         <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:10px">SUGGESTED PARLAY</div>
         <div id="picks-parlay-legs"></div>
         <div id="picks-parlay-summary"></div>
-        <button onclick="addParlayToSlip()" style="width:100%;padding:10px;background:#f59e0b;border:none;border-radius:8px;color:#080c17;font-size:12px;font-weight:700;font-family:inherit;margin-top:10px">ADD TO SLIP →</button>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button onclick="addParlayToSlip()" style="flex:1;padding:10px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;font-size:12px;font-weight:700;font-family:inherit">ADD TO SLIP</button>
+          <button onclick="addParlayToBet()" style="flex:1;padding:10px;background:#f59e0b;border:none;border-radius:8px;color:#080c17;font-size:12px;font-weight:700;font-family:inherit">+ BET PARLAY</button>
+        </div>
       </div>
     </div>
 
@@ -1110,9 +1113,9 @@ function renderGames(games){
       +'</div>'
       // ── Quick-add bet row ──
       +'<div style="border-top:1px solid #1a2535;margin-top:8px;padding-top:8px;display:flex;gap:6px">'
-      +'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',date:\''+escQ(g.date)+'\',time:\''+escQ(g.time)+'\',type:\'ml\',team:\''+escQ(g.away)+'\',opponent:\''+escQ(g.home)+'\',odds:'+g.awayML+'})" style="flex:1;padding:5px 4px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:6px;color:#38bdf8;font-size:9px;font-weight:700;font-family:inherit">+ BET ML</button>'
-      +(g.spread!=null?'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',date:\''+escQ(g.date)+'\',time:\''+escQ(g.time)+'\',type:\'spread\',team:\''+escQ(g.home)+'\',opponent:\''+escQ(g.away)+'\',spread:'+g.spread+',odds:'+g.spreadOdds+'})" style="flex:1;padding:5px 4px;background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.3);border-radius:6px;color:#c084fc;font-size:9px;font-weight:700;font-family:inherit">+ BET SPREAD</button>':'' )
-      +(g.total!=null?'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',date:\''+escQ(g.date)+'\',time:\''+escQ(g.time)+'\',type:\'ou\',team:\''+escQ(g.away)+'\',opponent:\''+escQ(g.home)+'\',total:'+g.total+',ouSide:\'over\',odds:-110})" style="flex:1;padding:5px 4px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.3);border-radius:6px;color:#34d399;font-size:9px;font-weight:700;font-family:inherit">+ BET O/U</button>':'')
+      +'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',commence_time:\''+g.commence_time+'\',type:\'ml\',team:\''+escQ(g.away)+'\',opponent:\''+escQ(g.home)+'\',odds:'+g.awayML+'})" style="flex:1;padding:5px 4px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:6px;color:#38bdf8;font-size:9px;font-weight:700;font-family:inherit">+ BET ML</button>'
+      +(g.spread!=null?'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',commence_time:\''+g.commence_time+'\',type:\'spread\',team:\''+escQ(g.home)+'\',opponent:\''+escQ(g.away)+'\',spread:'+g.spread+',odds:'+g.spreadOdds+'})" style="flex:1;padding:5px 4px;background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.3);border-radius:6px;color:#c084fc;font-size:9px;font-weight:700;font-family:inherit">+ BET SPREAD</button>':'' )
+      +(g.total!=null?'<button onclick="quickAddBet({away:\''+escQ(g.away)+'\',home:\''+escQ(g.home)+'\',commence_time:\''+g.commence_time+'\',type:\'ou\',team:\''+escQ(g.away)+'\',opponent:\''+escQ(g.home)+'\',total:'+g.total+',ouSide:\'over\',odds:-110})" style="flex:1;padding:5px 4px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.3);border-radius:6px;color:#34d399;font-size:9px;font-weight:700;font-family:inherit">+ BET O/U</button>':'')
       +'</div>'
       +'</div></div>';
   });
@@ -1676,13 +1679,21 @@ function quickAddBet(data){
   // Set bet type first (shows/hides correct fields)
   selectBetType(data.type || 'ml');
 
-  // Teams
-  var team   = data.team     || data.away || '';
-  var opp    = data.opponent || data.home || '';
-  var tEl = document.getElementById('bet-team');
-  var oEl = document.getElementById('bet-opponent');
-  if(tEl) tEl.value = team;
-  if(oEl) oEl.value = opp;
+  // Teams (not used for parlay)
+  if(data.type !== 'parlay'){
+    var team   = data.team     || data.away || '';
+    var opp    = data.opponent || data.home || '';
+    var tEl = document.getElementById('bet-team');
+    var oEl = document.getElementById('bet-opponent');
+    if(tEl) tEl.value = team;
+    if(oEl) oEl.value = opp;
+  }
+
+  // Parlay description
+  if(data.type === 'parlay' && data.parlayDesc){
+    var pdEl = document.getElementById('bet-parlay-desc');
+    if(pdEl) pdEl.value = data.parlayDesc;
+  }
 
   // Type-specific fields
   if(data.type === 'spread'){
@@ -1703,22 +1714,27 @@ function quickAddBet(data){
     updateToWin();
   }
 
-  // Game date/time — convert "Mar 21" + "7:00 PM ET" to datetime-local format
+  // Game date/time — use raw ISO commence_time if available, avoids display-string re-parsing bugs
   var dtEl = document.getElementById('bet-gametime');
-  if(dtEl && data.date && data.time){
-    try{
-      var year = new Date().getFullYear();
-      var raw = data.date + ' ' + year + ' ' + data.time.replace(' ET','').replace(' CT','').replace(' PT','');
-      var parsed = new Date(raw);
-      if(!isNaN(parsed.getTime())){
-        // Adjust for Eastern time (UTC-4 during daylight saving)
-        parsed.setHours(parsed.getHours() + 4);
-        dtEl.value = parsed.toISOString().slice(0,16);
+  if(dtEl){
+    if(data.commence_time){
+      try{
+        // commence_time is UTC ISO string e.g. "2025-03-21T23:30:00Z"
+        // datetime-local input needs local time without timezone suffix
+        var ct = new Date(data.commence_time);
+        if(!isNaN(ct.getTime())){
+          // Format as YYYY-MM-DDTHH:MM in local time
+          var pad = function(n){return n<10?'0'+n:n;};
+          dtEl.value = ct.getFullYear()+'-'+pad(ct.getMonth()+1)+'-'+pad(ct.getDate())+'T'+pad(ct.getHours())+':'+pad(ct.getMinutes());
+        }
+      } catch(e){
+        var now=new Date(); now.setMinutes(0,0,0);
+        dtEl.value=now.toISOString().slice(0,16);
       }
-    } catch(e){}
-  } else if(dtEl){
-    var now=new Date(); now.setMinutes(0,0,0);
-    dtEl.value=now.toISOString().slice(0,16);
+    } else {
+      var now=new Date(); now.setMinutes(0,0,0);
+      dtEl.value=now.toISOString().slice(0,16);
+    }
   }
 
   // Scroll form into view
@@ -1781,6 +1797,58 @@ function deletePendingBet(id){
   pendingBets=pendingBets.filter(function(b){return b.id!==id;});
   savePendingBetsStore(); updateBetsBadge(); renderPendingBets();
 }
+
+function editPendingBet(id){
+  var b = pendingBets.find(function(x){return x.id===id;});
+  if(!b) return;
+  // Remove the bet so saving creates a fresh one (preserves edit simplicity)
+  pendingBets = pendingBets.filter(function(x){return x.id!==id;});
+  savePendingBetsStore(); updateBetsBadge(); renderPendingBets();
+  // Show form pre-filled
+  document.getElementById('add-bet-form').style.display='block';
+  document.getElementById('add-bet-btn').style.display='none';
+  document.getElementById('bet-odds').oninput=updateToWin;
+  document.getElementById('bet-wager').oninput=updateToWin;
+  clearBetForm();
+  selectBetType(b.type||'ml');
+  // Pre-fill fields
+  var pad=function(n){return n<10?'0'+n:''+n;};
+  if(b.type==='parlay'){
+    var pdEl=document.getElementById('bet-parlay-desc');
+    if(pdEl) pdEl.value=b.desc||b.label||'';
+  } else {
+    var tEl=document.getElementById('bet-team');
+    var oEl=document.getElementById('bet-opponent');
+    if(tEl) tEl.value=b.team||'';
+    if(oEl) oEl.value=b.opponent||'';
+    if(b.type==='spread'){
+      var spEl=document.getElementById('bet-spread');
+      if(spEl&&b.spread!=null) spEl.value=b.spread;
+    }
+    if(b.type==='ou'){
+      var totEl=document.getElementById('bet-total');
+      var sideEl=document.getElementById('bet-ou-side');
+      if(totEl&&b.total!=null) totEl.value=b.total;
+      if(sideEl&&b.ouSide) sideEl.value=b.ouSide;
+    }
+  }
+  var odsEl=document.getElementById('bet-odds');
+  var wagEl=document.getElementById('bet-wager');
+  var dtEl=document.getElementById('bet-gametime');
+  if(odsEl) odsEl.value=b.odds||'';
+  if(wagEl) wagEl.value=b.wager||'';
+  if(dtEl&&b.gametime){
+    var gt=new Date(b.gametime);
+    if(!isNaN(gt.getTime()))
+      dtEl.value=gt.getFullYear()+'-'+pad(gt.getMonth()+1)+'-'+pad(gt.getDate())+'T'+pad(gt.getHours())+':'+pad(gt.getMinutes());
+  }
+  updateToWin();
+  setTimeout(function(){
+    var form=document.getElementById('add-bet-form');
+    if(form) form.scrollIntoView({behavior:'smooth',block:'start'});
+  },150);
+  showToast('Bet loaded for editing — update and tap SAVE BET');
+}
 function manualResolveBet(id,result){
   var bet=pendingBets.find(function(b){return b.id===id;});
   if(bet) resolveBet(bet,result);
@@ -1812,8 +1880,8 @@ function renderPendingBets(){
       +'<div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:4px">'+b.label+'</div>'
       +'<div style="font-size:11px;color:#7a8fa6;margin-bottom:10px">Odds: <span style="color:'+(b.odds>0?'#38bdf8':'#c084fc')+';font-weight:700">'+fmt(b.odds)+'</span> · Wager: <span style="color:#fff;font-weight:600">$'+b.wager+'</span> · To Win: <span style="color:#38bdf8;font-weight:700">+$'+profit+'</span></div>'
       +(isPast
-        ?'<div style="display:flex;gap:6px"><button onclick="manualResolveBet('+b.id+',\'Win\')" style="flex:1;padding:8px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;border-radius:8px;color:#38bdf8;font-size:11px;font-weight:700;font-family:inherit">✓ WIN</button><button onclick="manualResolveBet('+b.id+',\'Loss\')" style="flex:1;padding:8px;background:rgba(249,115,22,0.15);border:1px solid #f97316;border-radius:8px;color:#f97316;font-size:11px;font-weight:700;font-family:inherit">✗ LOSS</button><button onclick="manualResolveBet('+b.id+',\'Push\')" style="flex:1;padding:8px;background:rgba(161,161,170,0.1);border:1px solid #52525b;border-radius:8px;color:#a1a1aa;font-size:11px;font-weight:700;font-family:inherit"><-> PUSH</button><button onclick="deletePendingBet('+b.id+')" style="padding:8px 10px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">&#x1F5D1;</button></div>'
-        :'<button onclick="deletePendingBet('+b.id+')" style="padding:7px 14px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">Remove</button>'
+        ?'<div style="display:flex;gap:6px"><button onclick="manualResolveBet('+b.id+',\'Win\')" style="flex:1;padding:8px;background:rgba(56,189,248,0.15);border:1px solid #38bdf8;border-radius:8px;color:#38bdf8;font-size:11px;font-weight:700;font-family:inherit">WIN</button><button onclick="manualResolveBet('+b.id+',\'Loss\')" style="flex:1;padding:8px;background:rgba(249,115,22,0.15);border:1px solid #f97316;border-radius:8px;color:#f97316;font-size:11px;font-weight:700;font-family:inherit">LOSS</button><button onclick="manualResolveBet('+b.id+',\'Push\')" style="flex:1;padding:8px;background:rgba(161,161,170,0.1);border:1px solid #52525b;border-radius:8px;color:#a1a1aa;font-size:11px;font-weight:700;font-family:inherit">PUSH</button><button onclick="deletePendingBet('+b.id+')" style="padding:8px 10px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">&#x1F5D1;</button></div>'
+        :'<div style="display:flex;gap:6px"><button onclick="editPendingBet('+b.id+')" style="flex:1;padding:8px;background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;font-size:11px;font-weight:700;font-family:inherit">EDIT</button><button onclick="deletePendingBet('+b.id+')" style="padding:8px 14px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#52525b;font-size:11px;font-family:inherit">REMOVE</button></div>'
       )+'</div>';
   }).join('');
 }
@@ -2192,7 +2260,7 @@ function renderPicks(){
         +'data-label="'+p.pick.replace(/"/g,'&quot;')+'" '
         +'data-odds="'+p.odds+'" '
         +'style="flex:1;padding:6px 8px;background:transparent;border:1px solid '+col+'44;border-radius:7px;color:'+col+';font-size:10px;font-weight:700;font-family:inherit">+ SLIP</button>'
-        +'<button onclick="quickAddBet({away:\''+( p.game&&p.game.away ? p.game.away.replace(/'/g,"\\'") : '')+'\',home:\''+( p.game&&p.game.home ? p.game.home.replace(/'/g,"\\'") : '')+'\',date:\''+( p.game&&p.game.date ? p.game.date : '')+'\',time:\''+( p.game&&p.game.time ? p.game.time : '')+'\',type:\''+p.type+'\',team:\''+( p.game&&p.game.away ? p.game.away.replace(/'/g,"\\'") : '')+'\',opponent:\''+( p.game&&p.game.home ? p.game.home.replace(/'/g,"\\'") : '')+'\',odds:'+p.odds+(p.type==='spread'&&p.game&&p.game.spread!=null?',spread:'+p.game.spread:'')+(p.type==='ou'&&p.game&&p.game.total!=null?',total:'+p.game.total+',ouSide:\''+(p.pick.toLowerCase().indexOf('over')>=0?'over':'under')+'\'':'')+'})" '
+        +'<button onclick="quickAddBet({away:\''+(p.game&&p.game.away?p.game.away.replace(/'/g,"\\'"):'')+'\',home:\''+(p.game&&p.game.home?p.game.home.replace(/'/g,"\\'"):'')+'\',commence_time:\''+(p.game&&p.game.commence_time?p.game.commence_time:'')+'\',type:\''+p.type+'\',team:\''+(p.game&&p.game.away?p.game.away.replace(/'/g,"\\'"):'')+'\',opponent:\''+(p.game&&p.game.home?p.game.home.replace(/'/g,"\\'")+'\'':"''")+',odds:'+p.odds+(p.type==='spread'&&p.game&&p.game.spread!=null?',spread:'+p.game.spread:'')+(p.type==='ou'&&p.game&&p.game.total!=null?',total:'+p.game.total+',ouSide:\''+(p.pick.toLowerCase().indexOf('over')>=0?'over':'under')+'\'':'')+'})" '
         +'style="flex:1;padding:6px 8px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.4);border-radius:7px;color:#f59e0b;font-size:10px;font-weight:700;font-family:inherit">+ BET</button>'
         +'</div>':'')
       +'</div>';
@@ -2240,6 +2308,22 @@ function addParlayToSlip(){
   updateBadge(); renderSlip();
   showToast('Parlay legs added to slip!');
   switchTab('slip');
+}
+
+function addParlayToBet(){
+  if(!suggestedParlay.length) return;
+  var p = calcParlay(suggestedParlay.map(function(l){return{odds:l.odds};}));
+  // Build description from leg picks
+  var desc = suggestedParlay.map(function(l){return l.pick;}).join(' + ');
+  // Use earliest game time
+  var ct = suggestedParlay[0].game && suggestedParlay[0].game.commence_time ? suggestedParlay[0].game.commence_time : '';
+  quickAddBet({
+    type: 'parlay',
+    commence_time: ct,
+    parlayDesc: desc,
+    odds: p.american
+  });
+  showToast('Parlay pre-filled in BETS tab');
 }
 
 function renderPicksNoData(){
