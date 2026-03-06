@@ -5,11 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="Bracket Odds"/>
-<title>Bracket Odds ⚡</title>
+<meta name="apple-mobile-web-app-title" content="Leonard's Locks"/>
+<title>Leonard's Locks</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
-body{background:#080c17;color:#e0e6f0;font-family:'Courier New',monospace;max-width:480px;margin:0 auto;min-height:100vh}
+body{background:#080c17;color:#e0e6f0;font-family:'Courier New',monospace;max-width:480px;margin:0 auto;min-height:100vh;transition:background 0.3s,color 0.3s}
+/* ── Light theme ── */
+body.light{background:#f0f4f8;color:#1a2535}
+body.light #header{background:linear-gradient(160deg,#1a3a6a,#2a4a8a);border-bottom-color:#f59e0b}
+body.light .card{background:#ffffff;border-color:#d0dae8}
+body.light .card-header{background:#e8f0f8;border-bottom-color:#d0dae8}
+body.light #content{background:#f0f4f8}
+body.light .tab{background:#d0dce8;color:#445566}
+body.light .tab.active{background:#f59e0b;color:#fff}
+body.light #refresh-btn{background:rgba(245,158,11,0.15);color:#f59e0b}
+body.light .field-input{background:#ffffff;border-color:#b0c0d0;color:#1a2535}
+body.light .calc-card{background:#ffffff;border-color:#d0dae8}
+body.light .summary-box{background:#ffffff;border-color:#d0dae8}
+body.light .slip-leg{background:#f8fafc;border-color:#d0dae8}
+body.light #setup-screen{background:#f0f4f8}
+body.light .setup-card{background:#ffffff;border-color:#d0dae8}
+body.light .empty{color:#667788}
+body.light #tab-import,body.light #tab-accuracy,body.light #tab-stats{color:#1a2535}
+body.light .search-dropdown{background:#ffffff;border-color:#d0dae8}
+body.light .search-item{color:#1a2535;border-bottom-color:#e8f0f8}
+body.light #splash-screen{background:#f0f4f8}
 input,textarea,button{font-family:inherit}
 input:focus,textarea:focus{outline:none}
 button{cursor:pointer}
@@ -139,11 +159,21 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
 <body>
 <div id="app">
 
+  <!-- ══ SPLASH SCREEN ══ -->
+  <div id="splash-screen" style="position:fixed;inset:0;background:#080c17;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center">
+    <div style="font-size:13px;color:#f59e0b;letter-spacing:4px;margin-bottom:16px">IN MEMORY OF</div>
+    <div style="font-size:42px;font-weight:700;color:#fff;letter-spacing:-1px;line-height:1.1">Leonard's<br/><span style="color:#f59e0b">Locks</span></div>
+    <div style="width:60px;height:2px;background:#f59e0b;margin:20px auto"></div>
+    <div style="font-size:14px;color:#94a3b8;line-height:1.8;max-width:280px">A tradition of friendship,<br/>March Madness, and friendly wagers</div>
+    <div style="margin-top:40px;font-size:11px;color:#445566;letter-spacing:2px">EST. 25+ YEARS AGO</div>
+    <!-- To disable splash: set SHOW_SPLASH = false in settings below -->
+  </div>
+
   <!-- ══ SETUP SCREEN ══ -->
   <div id="setup-screen" style="padding:0 16px 40px;padding-top:calc(env(safe-area-inset-top) + 16px)">
     <div style="text-align:center;padding:20px 0 16px">
       <div style="font-size:11px;color:#f59e0b;letter-spacing:3px">NCAA TOURNAMENT</div>
-      <div style="font-size:28px;font-weight:700;color:#fff;margin-top:4px">Bracket Odds <span style="color:#f59e0b">⚡</span></div>
+      <div style="font-size:28px;font-weight:700;color:#fff;margin-top:4px">Leonard's <span style="color:#f59e0b">Locks</span></div>
       <div style="font-size:12px;color:#7a8fa6;margin-top:6px">Live odds · AI analysis · Bet tracking</div>
     </div>
 
@@ -207,9 +237,10 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
     <div id="header-top">
       <div>
         <div class="brand-sub">NCAA Tournament</div>
-        <div class="brand-title">Bracket Odds <span>⚡</span></div>
+        <div class="brand-title">Leonard's <span>Locks</span></div>
       </div>
       <div style="text-align:right;padding-top:2px">
+        <button onclick="toggleTheme()" id="theme-btn" style="background:transparent;border:1px solid #2a3a4a;border-radius:20px;color:#7a8fa6;font-size:9px;padding:3px 9px;font-family:inherit;font-weight:700;margin-bottom:3px">LIGHT</button>
         <div id="last-updated" style="font-size:9px;color:#7a8fa6"></div>
         <div id="cache-status" style="font-size:9px;margin-top:2px"></div>
         <button id="force-refresh-btn" onclick="forceRefresh()" style="display:none;font-size:8px;color:#38bdf8;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer;font-family:inherit">Force refresh</button>
@@ -422,6 +453,8 @@ textarea{width:100%;min-height:140px;background:#111825;border:1px solid #1e2e40
             <div class="summary-row"><span class="summary-lbl">Total payout</span><span class="summary-val large" id="s-payout">—</span></div>
             <div class="summary-row"><span class="summary-lbl">Profit</span><span class="summary-val green" id="s-profit">—</span></div>
           </div>
+          <button onclick="saveSlipAsBet()" style="width:100%;margin-top:14px;padding:12px;background:#f59e0b;border:none;border-radius:10px;color:#080c17;font-size:13px;font-weight:700;font-family:inherit;letter-spacing:0.5px">SAVE AS PENDING BET</button>
+          <button onclick="clearSlip()" style="width:100%;margin-top:8px;padding:10px;background:transparent;border:1px solid #2a3a4a;border-radius:10px;color:#7a8fa6;font-size:11px;font-family:inherit">Clear Slip</button>
         </div>
       </div>
     </div>
@@ -869,10 +902,44 @@ function launchApp(){
   initApp();
 }
 
-// ══ BOOT ══
+// ══ SPLASH ══
+var SHOW_SPLASH = true; // set false to disable splash screen
 window.onload=function(){
+  applyTheme();
+  if(SHOW_SPLASH){
+    var splash = document.getElementById('splash-screen');
+    if(splash){
+      setTimeout(function(){
+        splash.style.transition='opacity 0.8s';
+        splash.style.opacity='0';
+        setTimeout(function(){
+          splash.style.display='none';
+          if(API_KEY){ launchApp(); }
+        }, 800);
+      }, 2200);
+      return;
+    }
+  }
   if(API_KEY){ launchApp(); }
 };
+
+// ══ THEME ══
+var currentTheme = localStorage.getItem('theme') || 'dark';
+function applyTheme(){
+  var btn = document.getElementById('theme-btn');
+  if(currentTheme === 'light'){
+    document.body.classList.add('light');
+    if(btn) btn.textContent = 'DARK';
+  } else {
+    document.body.classList.remove('light');
+    if(btn) btn.textContent = 'LIGHT';
+  }
+}
+function toggleTheme(){
+  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('theme', currentTheme);
+  applyTheme();
+}
 
 function initApp(){
   renderParlayLegs();
@@ -882,7 +949,6 @@ function initApp(){
   renderPendingBets();
   updateBetsBadge();
   renderAccuracyTab();
-  // Pre-fill bankroll input if saved
   var bankrollInput = document.getElementById('bankroll-input');
   if(bankrollInput && BANKROLL) bankrollInput.value = BANKROLL;
   if(API_KEY){ fetchOdds(); checkPendingBets(); generatePicks(); startCacheTimer(); }
@@ -896,6 +962,23 @@ function switchTab(name){
   document.querySelectorAll('.tab-content').forEach(function(t){t.style.display='none';});
   var el=document.getElementById('tab-'+name);
   if(el) el.style.display='block';
+  // Re-render ACC tab on every visit so it's always fresh
+  if(name==='accuracy') renderAccuracyTab();
+}
+
+// ══ SLIP → BET ══
+function saveSlipAsBet(){
+  if(!betSlip.length){ showToast('Add legs to the slip first'); return; }
+  var p = calcParlay(betSlip);
+  var desc = betSlip.map(function(b){return b.label;}).join(' + ');
+  quickAddBet({type:'parlay', parlayDesc:desc, odds:p.american});
+  showToast('Slip saved as parlay bet — add wager in BETS tab');
+}
+function clearSlip(){
+  betSlip=[];
+  renderSlip(); updateBadge();
+  // Also clear active states on odds buttons
+  document.querySelectorAll('.odds-btn.active,.sub-btn.active').forEach(function(b){b.classList.remove('active');});
 }
 
 // ══ ODDS API ══
@@ -1109,7 +1192,7 @@ function renderGames(games){
       +'</div>'
       +'<div class="sub-bets">'
       +'<button class="sub-btn'+(spAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'spread\','+g.spreadOdds+',\''+ escQ(spLabel)+'\',this)"><div class="sub-label">SPREAD</div><div class="sub-val">'+spLabel+'</div><div class="sub-odds">'+fmt(g.spreadOdds)+'</div></button>'
-      +'<button class="sub-btn'+(ouAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'ou\',-110,\'O/U '+totLabel+'\',this)"><div class="sub-label">TOTAL</div><div class="sub-val">'+totLabel+'</div><div class="sub-odds">O/U -110</div></button>'
+      +'<button class="sub-btn'+(ouAct?' active':'')+'" onclick="toggleSlip(\''+ g.id+'\',\'ou\',-110,\'O/U '+totLabel+' ('+escQ(shortName(g.away))+' vs '+escQ(shortName(g.home))+')\'  ,this)"><div class="sub-label">TOTAL</div><div class="sub-val">'+totLabel+'</div><div class="sub-odds">O/U -110</div></button>'
       +'</div>'
       // ── Quick-add bet row ──
       +'<div style="border-top:1px solid #1a2535;margin-top:8px;padding-top:8px;display:flex;gap:6px">'
@@ -2158,6 +2241,8 @@ async function generatePicks(){
 
   renderPicks();
   renderSuggestedParlay();
+  logPicksForAccuracy(allPicks);
+  renderAccuracyTab();
   generateClaudeSummary();
 }
 
