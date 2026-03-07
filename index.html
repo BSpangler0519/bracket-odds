@@ -1350,6 +1350,7 @@ function runMatchup(){
   var statFavProb=Math.max(winProb1,winProb2).toFixed(0);
 
   var metrics=[
+    {label:'PPG',key:'ppg',t1:s1.ppg,t2:s2.ppg,higherBetter:true,desc:'Points scored per game'},
     {label:'OFF RATING',key:'ortg',t1:s1.ortg,t2:s2.ortg,higherBetter:true,desc:'Points per 100 possessions'},
     {label:'DEF RATING',key:'drtg',t1:s1.drtg,t2:s2.drtg,higherBetter:false,desc:'Points allowed per 100'},
     {label:'NET RATING',key:'net',t1:net1,t2:net2,higherBetter:true,desc:'Off minus Def rating'},
