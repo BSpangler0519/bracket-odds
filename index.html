@@ -1845,10 +1845,16 @@ async function generatePicks(){
         }
       }
       if(g.total!=null){
-        var avgPace=(s1.pace+s2.pace)/2;
-        var paceAdj=avgPace/70;
-        var expHomeFinal=((s1.ortg+(100-s2.drtg))/2)*paceAdj*0.68;
-        var expAwayFinal=((s2.ortg+(100-s1.drtg))/2)*paceAdj*0.68;
+        // Estimate what each defense allows per game based on drtg vs league avg
+        var leagueAvgPpg = 78;
+        var leagueAvgDrtg = 105;
+        var avgPace = (s1.pace + s2.pace) / 2;
+        var paceAdj = avgPace / 70;
+        var homeAllows = leagueAvgPpg * (s1.drtg / leagueAvgDrtg);
+        var awayAllows = leagueAvgPpg * (s2.drtg / leagueAvgDrtg);
+        // Project each score as blend of team offense and opponent defensive tendency
+        var expHomeFinal = (s1.ppg + awayAllows) / 2 * paceAdj;
+        var expAwayFinal = (s2.ppg + homeAllows) / 2 * paceAdj;
         var projTotal=expHomeFinal+expAwayFinal;
         var ouEdge=projTotal-g.total;
         var ouPick,ouReason;
