@@ -428,10 +428,11 @@ button{cursor:pointer}
 
     <!-- ACCURACY PANEL -->
     <div id="accuracy-panel" style="display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div style="font-size:10px;color:#f59e0b;letter-spacing:2px">PICK ACCURACY TRACKER</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:10px;color:#f59e0b;letter-spacing:2px">AI PICK ACCURACY</div>
         <button onclick="clearPickAccuracy()" style="background:rgba(249,115,22,0.1);border:1px solid #f97316;border-radius:8px;color:#f97316;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:1px;font-family:inherit">&#128465; RESET</button>
       </div>
+      <div style="font-size:10px;color:#445566;margin-bottom:14px">Grades all AI picks after games finish &mdash; independent of your bets</div>
       <div id="accuracy-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px"></div>
       <div id="accuracy-breakdown" style="background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:14px;margin-bottom:14px"></div>
       <div style="font-size:10px;color:#7a8fa6;letter-spacing:1px;margin-bottom:8px">RECENTLY GRADED PICKS</div>
@@ -1749,7 +1750,8 @@ function renderPendingBets(){
 // AUTO-RESOLVE BETS (fixed: checks both NCAAB and tournament)
 // ============================================================
 async function checkPendingBets(){
-  if(!API_KEY||!pendingBets.length) return;
+  if(!API_KEY) return;
+  if(!pendingBets.length && !pickAccuracy.some(function(a){return !a.result;})) return;
   try{
     var scoreParams='scores?daysFrom=3&apiKey='+API_KEY;
     var base='https://api.the-odds-api.com/v4/sports/';
@@ -1763,7 +1765,6 @@ async function checkPendingBets(){
     var resolved=0;
     pendingBets.slice().forEach(function(bet){
       if(bet.type==='parlay') return;
-      // Use fuzzy matching to find game - handles "UNC" matching "North Carolina"
       var game=scores.find(function(g){
         if(!g.completed) return false;
         var h=g.home_team.toLowerCase(), a=g.away_team.toLowerCase();
@@ -1783,7 +1784,67 @@ async function checkPendingBets(){
       if(result){resolveBet(bet,result);resolved++;}
     });
     if(resolved>0) showToast(resolved+' bet'+(resolved>1?'s':'')+' auto-resolved! Check LOG tab.');
+    // Grade AI picks independently of bets
+    gradePicksFromScores(scores);
   } catch(e){ console.log('Score check:',e); }
+}
+
+// Grade unresolved AI pick accuracy entries against completed game scores
+function gradePicksFromScores(scores){
+  var ungraded=pickAccuracy.filter(function(a){return !a.result;});
+  if(!ungraded.length) return;
+  var newlyGraded=0;
+  ungraded.forEach(function(entry){
+    // Find the completed game matching this pick's teams
+    var game=scores.find(function(g){
+      if(!g.completed||!g.scores) return false;
+      var h=g.home_team.toLowerCase(), a=g.away_team.toLowerCase();
+      var gl=(entry.gameLabel||'').toLowerCase(); // "Away @ Home"
+      var parts=gl.split(' @ ');
+      if(parts.length<2) return false;
+      var awayPart=parts[0].trim(), homePart=parts[1].trim();
+      return (fuzzyTeamMatch(awayPart,a)||fuzzyTeamMatch(awayPart,h))
+          && (fuzzyTeamMatch(homePart,h)||fuzzyTeamMatch(homePart,a));
+    });
+    if(!game) return;
+    var getScore=function(name){var s=game.scores.find(function(s){return s.name===name;});return s?parseInt(s.score):0;};
+    var homeScore=getScore(game.home_team), awayScore=getScore(game.away_team);
+    var total=homeScore+awayScore;
+    var pick=(entry.pick||'').toLowerCase();
+    var result=null;
+    if(entry.type==='ml'){
+      // Pick label: "TeamName ML" - check if that team won
+      var pickTeam=pick.replace(' ml','').trim();
+      var pickIsHome=fuzzyTeamMatch(pickTeam,game.home_team.toLowerCase());
+      var pickScore=pickIsHome?homeScore:awayScore;
+      var oppScore2=pickIsHome?awayScore:homeScore;
+      result=pickScore>oppScore2?'win':'loss';
+    } else if(entry.type==='spread'){
+      // Pick label: "TeamName -3.5" or "TeamName +7"
+      var spreadMatch=pick.match(/([+-]?\d+\.?\d*)\s*$/);
+      if(spreadMatch){
+        var line=parseFloat(spreadMatch[1]);
+        var spreadTeam=pick.replace(spreadMatch[0],'').trim();
+        var stIsHome=fuzzyTeamMatch(spreadTeam,game.home_team.toLowerCase());
+        var stScore=stIsHome?homeScore:awayScore;
+        var stOpp=stIsHome?awayScore:homeScore;
+        var margin=stScore-stOpp;
+        result=margin+line>0?'win':margin+line===0?'push':'loss';
+      }
+    } else if(entry.type==='ou'){
+      var ouLine=parseFloat((entry.pick||'').replace(/[^0-9.]/g,''));
+      if(!isNaN(ouLine)){
+        var isOver=pick.indexOf('over')>=0;
+        result=isOver?(total>ouLine?'win':total===ouLine?'push':'loss'):(total<ouLine?'win':total===ouLine?'push':'loss');
+      }
+    }
+    if(result){
+      entry.result=result;
+      entry.gradedAt=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      newlyGraded++;
+    }
+  });
+  if(newlyGraded>0){ savePickAccuracy(); renderAccuracyTab(); }
 }
 
 // Fuzzy team match - handles "UNC" -> "North Carolina", "Kansas Jayhawks" -> "Kansas"
