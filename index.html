@@ -1707,6 +1707,15 @@ function resolveBet(bet,result){
   var gameDate=new Date(bet.gametime).toLocaleDateString([],{month:'short',day:'numeric'});
   historyData.unshift({id:Date.now(),desc:bet.label+' ('+fmt(bet.odds)+')',wager:bet.wager,result:result,payout:payout,date:gameDate});
   saveHistory();
+  // Grade matching accuracy entry by type + team name
+  var accResult=result==='Win'?'win':result==='Loss'?'loss':result==='Push'?'push':null;
+  if(accResult && bet.type && bet.team){
+    var teamLower=(bet.team||'').toLowerCase();
+    var matched=pickAccuracy.find(function(a){
+      return !a.result && a.type===bet.type && a.pick && a.pick.toLowerCase().indexOf(teamLower)>=0;
+    });
+    if(matched){ matched.result=accResult; matched.gradedAt=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}); savePickAccuracy(); }
+  }
   pendingBets=pendingBets.filter(function(b){return b.id!==bet.id;});
   savePendingBetsStore(); updateBetsBadge(); renderPendingBets(); renderHistory();
 }
