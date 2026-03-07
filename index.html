@@ -313,7 +313,16 @@ button{cursor:pointer}
 
     <!-- SLIP PANEL -->
     <div id="slip-panel" style="display:none">
-      <div id="slip-empty" class="empty">Tap any odds button on the<br/>Games tab to build your parlay.</div>
+      <!-- MANUAL QUICK-ADD -->
+      <div style="background:#111825;border:1px solid #1a2a3a;border-radius:12px;padding:12px;margin-bottom:14px">
+        <div style="font-size:9px;color:#f59e0b;letter-spacing:2px;margin-bottom:10px">QUICK ADD LEG</div>
+        <input id="manual-leg-desc" type="text" placeholder="e.g. Kansas Over  /  Arizona +3" style="width:100%;box-sizing:border-box;background:#0a1628;border:1px solid #2a3a4a;border-radius:8px;color:#e2e8f0;padding:8px 10px;font-size:12px;font-family:inherit;margin-bottom:8px"/>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="manual-leg-odds" type="number" placeholder="Odds e.g. -110" style="width:120px;background:#0a1628;border:1px solid #2a3a4a;border-radius:8px;color:#e2e8f0;padding:8px 10px;font-size:12px;font-family:inherit"/>
+          <button onclick="addManualLeg()" style="flex:1;padding:8px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:1px;font-family:inherit">+ ADD TO SLIP</button>
+        </div>
+      </div>
+      <div id="slip-empty" class="empty" style="display:none">Tap any odds button on the<br/>Games tab or use Quick Add above.</div>
       <div id="slip-legs"></div>
       <div id="slip-summary" style="display:none">
         <div class="summary-box">
@@ -1057,6 +1066,18 @@ function renderSlip(){
 function removeSlipItem(key){
   betSlip=betSlip.filter(function(b){return b.key!==key;});
   renderSlip(); updateBadge();
+}
+function addManualLeg(){
+  var desc=(document.getElementById('manual-leg-desc').value||'').trim();
+  var oddsVal=parseInt(document.getElementById('manual-leg-odds').value||'0');
+  if(!desc){showToast('Enter a description for this leg');return;}
+  if(!oddsVal||oddsVal===0||oddsVal===-1){showToast('Enter valid odds e.g. -110 or +150');return;}
+  var key='manual-'+Date.now();
+  betSlip.push({key:key,label:desc,odds:oddsVal});
+  document.getElementById('manual-leg-desc').value='';
+  document.getElementById('manual-leg-odds').value='';
+  renderSlip(); updateBadge();
+  showToast(desc+' added to slip');
 }
 function updateSlipSummary(){
   if(!betSlip.length) return;
