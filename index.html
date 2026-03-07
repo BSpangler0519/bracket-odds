@@ -578,14 +578,6 @@ button{cursor:pointer}
         <div id="bankroll-saved-msg" style="font-size:10px;color:#38bdf8;margin-top:6px;display:none">&#10003; Bankroll saved - pick cards will show Half Kelly bet sizes</div>
         <div style="font-size:10px;color:#445566;margin-top:6px;line-height:1.6">Half Kelly sizing recommends optimal bet amounts based on your edge. Enter your total betting bankroll.</div>
       </div>
-      <!-- Manual paste -->
-      <div class="tool-section" style="margin-top:12px">
-        <div class="tool-section-title">MANUAL ODDS PASTE</div>
-        <p style="font-size:12px;color:#667788;margin-bottom:10px;line-height:1.7">Paste odds from ESPN, Vegas Insider, or Action Network.<br/><span style="color:#f59e0b">Format: Team1 -150 Team2 +130</span></p>
-        <textarea id="paste-area" placeholder="Example:&#10;Duke -145 UNC +125&#10;Kansas +110 Houston -130" style="width:100%;min-height:120px;background:#111825;border:1px solid #1e2e40;border-radius:10px;color:#e0e6f0;padding:12px;font-size:13px;resize:vertical"></textarea>
-        <button onclick="parseOdds()" style="width:100%;padding:12px;background:#f59e0b;border:none;border-radius:10px;color:#080c17;font-size:14px;font-weight:700;margin-top:10px">PARSE ODDS</button>
-        <div id="parsed-results"></div>
-      </div>
     </div>
   </div>
 
@@ -900,7 +892,7 @@ async function fetchOdds(){
 
     document.getElementById('odds-loading').style.display='none';
     if(!allGamesData.length){
-      document.getElementById('odds-list').innerHTML='<div class="empty">No NCAA games with odds right now.<br/><span style="font-size:11px">Odds appear ~1 week before games.<br/>Use TOOLS &rarr; KEYS to paste odds manually.</span></div>';
+      document.getElementById('odds-list').innerHTML='<div class="empty">No NCAA games with odds right now.<br/><span style="font-size:11px">Odds appear ~1 week before games.<br/></span></div>';
     } else {
       document.getElementById('odds-filters').style.display='block';
       filterOdds(d2.length>0?'tournament':'all');
@@ -919,7 +911,7 @@ function renderOddsError(msg){
   var el=document.getElementById('odds-error');
   el.style.display='block';
   if(msg==='add_key'){
-    el.innerHTML='<div class="alert-yellow"><strong>&#9881; No API Key Set</strong>Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:#60a5fa">the-odds-api.com</a> (takes 2 min).<br/>Then tap <strong>TOOLS &rarr; KEYS &rarr; Change API Keys</strong>.<br/><br/><span style="color:#a0b4c8;font-size:11px">Until then, paste odds manually in TOOLS &rarr; KEYS.</span></div>';
+    el.innerHTML='<div class="alert-yellow"><strong>&#9881; No API Key Set</strong>Get a free key at <a href="https://the-odds-api.com" target="_blank" style="color:#60a5fa">the-odds-api.com</a> (takes 2 min).<br/>Then tap <strong>TOOLS &rarr; KEYS &rarr; Change API Keys</strong>.<br/></div>';
   } else {
     el.innerHTML='<div class="alert-red">Error: '+msg+' &mdash; <span onclick="fetchOdds()" style="text-decoration:underline;cursor:pointer">retry</span></div>';
   }
@@ -2158,28 +2150,6 @@ function renderHistory(){
 }
 
 // ============================================================
-// MANUAL ODDS PASTE
-// ============================================================
-function parseOdds(){
-  var text=document.getElementById('paste-area').value;
-  var lines=text.split('\n').filter(function(l){return l.trim();});
-  var parsed=[];
-  lines.forEach(function(line){
-    var matches=[],re=/([A-Za-z ]+?)\s+([+-]\d+)/g,m;
-    while((m=re.exec(line))!==null) matches.push({team:m[1].trim(),odds:parseInt(m[2])});
-    if(matches.length>=2) parsed.push({home:matches[0].team,away:matches[1].team,homeML:matches[0].odds,awayML:matches[1].odds});
-    else if(matches.length===1) parsed.push({team:matches[0].team,odds:matches[0].odds});
-  });
-  var el=document.getElementById('parsed-results');
-  if(!parsed.length){el.innerHTML='<div class="alert-red" style="margin-top:12px">No odds detected. Format: Team -150 Team +130</div>';return;}
-  el.innerHTML='<div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin:14px 0 10px">PARSED &mdash; '+parsed.length+' matchup'+(parsed.length>1?'s':'')+'</div>'
-    +parsed.map(function(g){
-      return g.home
-        ?'<div style="background:#111825;border:1px solid #1e2e40;border-radius:10px;padding:11px 13px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600">'+g.away+'</div><div style="font-size:10px;color:#667788">vs '+g.home+'</div></div><div style="text-align:right"><div style="font-weight:700;color:'+(g.awayML>0?'#38bdf8':'#c084fc')+'">'+fmt(g.awayML)+'</div><div style="font-weight:700;color:'+(g.homeML>0?'#38bdf8':'#c084fc')+'">'+fmt(g.homeML)+'</div></div></div>'
-        :'<div style="background:#111825;border:1px solid #1e2e40;border-radius:10px;padding:11px 13px;margin-bottom:7px;display:flex;justify-content:space-between"><span style="font-size:13px">'+g.team+'</span><span style="font-weight:700;color:'+(g.odds>0?'#38bdf8':'#c084fc')+'">'+fmt(g.odds)+'</span></div>';
-    }).join('');
-}
-
 // ============================================================
 // TOAST
 // ============================================================
