@@ -215,7 +215,7 @@ button{cursor:pointer}
       <button onclick="toggleTheme()" id="theme-btn" style="background:transparent;border:1px solid #2a3a4a;border-radius:20px;color:#7a8fa6;font-size:9px;padding:3px 9px;font-family:inherit;font-weight:700;margin-bottom:3px">LIGHT</button>
       <div id="last-updated" style="font-size:9px;color:#7a8fa6"></div>
       <div id="cache-status" style="font-size:9px;margin-top:1px"></div>
-      <button id="force-refresh-btn" onclick="forceRefresh()" style="display:none;font-size:8px;color:#38bdf8;background:none;border:none;padding:0;text-decoration:underline;cursor:pointer;font-family:inherit">Force refresh</button>
+      <button id="force-refresh-btn" onclick="forceRefresh()" style="display:none;font-size:9px;color:#38bdf8;background:rgba(56,189,248,0.1);border:1px solid #38bdf8;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;font-weight:700;margin-top:2px">&#8635; FORCE</button>
     </div>
   </div>
   <div id="tabs">
@@ -566,6 +566,23 @@ button{cursor:pointer}
       <div class="tool-section" style="margin-bottom:12px">
         <button onclick="showSetup()" style="background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;padding:7px 14px;font-size:11px;font-weight:700;letter-spacing:1px">&#9881; CHANGE API KEYS</button>
       </div>
+      <!-- Preferred Bookmaker -->
+      <div class="tool-section" style="margin-bottom:12px">
+        <div class="tool-section-title">&#127922; PREFERRED BOOKMAKER</div>
+        <select id="preferred-book-select" onchange="savePreferredBook()" style="width:100%;background:#080c17;border:1px solid #1e2e40;border-radius:8px;color:#fff;padding:9px 10px;font-size:14px;font-family:inherit;margin-bottom:6px">
+          <option value="all">BEST (most complete line)</option>
+          <option value="caesars">Caesars</option>
+          <option value="draftkings">DraftKings</option>
+          <option value="fanduel">FanDuel</option>
+          <option value="betmgm">BetMGM</option>
+          <option value="betrivers">BetRivers</option>
+          <option value="bovada">Bovada</option>
+          <option value="betonlineag">BetOnline</option>
+          <option value="lowvig">LowVig</option>
+        </select>
+        <div id="preferred-book-msg" style="font-size:10px;color:#38bdf8;margin-top:4px;display:none">&#10003; Saved - odds will use this book on next refresh</div>
+        <div style="font-size:10px;color:#445566;margin-top:4px;line-height:1.6">Sets the default book shown on the GAMES tab. Caesars requires the paid API tier.</div>
+      </div>
       <!-- Bankroll -->
       <div class="tool-section">
         <div class="tool-section-title">&#128176; BANKROLL (for Kelly bet sizing)</div>
@@ -604,7 +621,7 @@ var statsMode = 'team';
 var matchupTeam1 = null, matchupTeam2 = null;
 var currentBetType = 'ml';
 var editPanelOpen = false;
-var selectedBookmaker = 'all';
+var selectedBookmaker = localStorage.getItem('preferredBook') || 'all';
 var currentBetsSubTab = 'pending-panel';
 var currentToolsSubTab = 'calc-panel';
 
@@ -693,6 +710,7 @@ function initApp(){
   renderParlayLegs(); updateSingle(); updateParlay();
   renderHistory(); renderPendingBets(); updateBetsBadge();
   renderAccuracyTab();
+  initPreferredBook();
   var bi=document.getElementById('bankroll-input');
   if(bi&&BANKROLL) bi.value=BANKROLL;
   if(API_KEY){ fetchOdds(); checkPendingBets(); generatePicks(); startCacheTimer(); }
@@ -1142,6 +1160,21 @@ function saveBankroll(){
   var msg=document.getElementById('bankroll-saved-msg');
   msg.style.display='block';
   setTimeout(function(){msg.style.display='none';},3000);
+}
+function savePreferredBook(){
+  var sel=document.getElementById('preferred-book-select');
+  if(!sel) return;
+  var val=sel.value;
+  localStorage.setItem('preferredBook',val);
+  selectedBookmaker=val;
+  var msg=document.getElementById('preferred-book-msg');
+  if(msg){msg.style.display='block'; setTimeout(function(){msg.style.display='none';},3000);}
+}
+function initPreferredBook(){
+  var sel=document.getElementById('preferred-book-select');
+  if(!sel) return;
+  var saved=localStorage.getItem('preferredBook')||'all';
+  sel.value=saved;
 }
 function halfKelly(edgePct,odds){
   if(!BANKROLL||!edgePct) return null;
@@ -1791,60 +1824,65 @@ async function checkPendingBets(){
 
 // Grade unresolved AI pick accuracy entries against completed game scores
 function gradePicksFromScores(scores){
-  var ungraded=pickAccuracy.filter(function(a){return !a.result;});
-  if(!ungraded.length) return;
-  var newlyGraded=0;
-  ungraded.forEach(function(entry){
-    // Find the completed game matching this pick's teams
-    var game=scores.find(function(g){
-      if(!g.completed||!g.scores) return false;
-      var h=g.home_team.toLowerCase(), a=g.away_team.toLowerCase();
-      var gl=(entry.gameLabel||'').toLowerCase(); // "Away @ Home"
-      var parts=gl.split(' @ ');
-      if(parts.length<2) return false;
-      var awayPart=parts[0].trim(), homePart=parts[1].trim();
-      return (fuzzyTeamMatch(awayPart,a)||fuzzyTeamMatch(awayPart,h))
-          && (fuzzyTeamMatch(homePart,h)||fuzzyTeamMatch(homePart,a));
+  try{
+    var ungraded=pickAccuracy.filter(function(a){return !a.result;});
+    if(!ungraded.length) return;
+    var newlyGraded=0;
+    ungraded.forEach(function(entry){
+      // Match by gameId first (most reliable), fall back to fuzzy team name
+      var game=scores.find(function(g){ return g.id===entry.gameId && g.completed && g.scores; });
+      if(!game){
+        // Fallback: fuzzy match on gameLabel "Away @ Home"
+        var parts=(entry.gameLabel||'').toLowerCase().split(' @ ');
+        if(parts.length>=2){
+          var awayPart=parts[0].trim(), homePart=parts[1].trim();
+          game=scores.find(function(g){
+            if(!g.completed||!g.scores) return false;
+            var h=g.home_team.toLowerCase(), a=g.away_team.toLowerCase();
+            return (fuzzyTeamMatch(awayPart,a)||fuzzyTeamMatch(awayPart,h))
+                && (fuzzyTeamMatch(homePart,h)||fuzzyTeamMatch(homePart,a));
+          });
+        }
+      }
+      if(!game||!game.scores) return;
+      var getScore=function(name){var s=game.scores.find(function(s){return s.name===name;});return s?parseInt(s.score):0;};
+      var homeScore=getScore(game.home_team), awayScore=getScore(game.away_team);
+      var total=homeScore+awayScore;
+      var pick=(entry.pick||'').toLowerCase();
+      var result=null;
+      if(entry.type==='ml'){
+        var pickTeam=pick.replace(' ml','').trim();
+        var pickIsHome=fuzzyTeamMatch(pickTeam,game.home_team.toLowerCase());
+        var pickScore=pickIsHome?homeScore:awayScore;
+        var oppScore=pickIsHome?awayScore:homeScore;
+        if(pickScore!==oppScore) result=pickScore>oppScore?'win':'loss';
+      } else if(entry.type==='spread'){
+        var spreadMatch=pick.match(/([+-]?\d+\.?\d*)\s*$/);
+        if(spreadMatch){
+          var line=parseFloat(spreadMatch[1]);
+          var spreadTeam=pick.replace(spreadMatch[0],'').trim();
+          var stIsHome=fuzzyTeamMatch(spreadTeam,game.home_team.toLowerCase());
+          var stScore=stIsHome?homeScore:awayScore;
+          var stOpp=stIsHome?awayScore:homeScore;
+          var margin=stScore-stOpp+line;
+          result=margin>0?'win':margin===0?'push':'loss';
+        }
+      } else if(entry.type==='ou'){
+        var ouLine=parseFloat((entry.pick||'').replace(/[^0-9.]/g,''));
+        if(!isNaN(ouLine)&&ouLine>0){
+          var isOver=pick.indexOf('over')>=0;
+          if(total!==ouLine) result=isOver?(total>ouLine?'win':'loss'):(total<ouLine?'win':'loss');
+          else result='push';
+        }
+      }
+      if(result){
+        entry.result=result;
+        entry.gradedAt=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        newlyGraded++;
+      }
     });
-    if(!game) return;
-    var getScore=function(name){var s=game.scores.find(function(s){return s.name===name;});return s?parseInt(s.score):0;};
-    var homeScore=getScore(game.home_team), awayScore=getScore(game.away_team);
-    var total=homeScore+awayScore;
-    var pick=(entry.pick||'').toLowerCase();
-    var result=null;
-    if(entry.type==='ml'){
-      // Pick label: "TeamName ML" - check if that team won
-      var pickTeam=pick.replace(' ml','').trim();
-      var pickIsHome=fuzzyTeamMatch(pickTeam,game.home_team.toLowerCase());
-      var pickScore=pickIsHome?homeScore:awayScore;
-      var oppScore2=pickIsHome?awayScore:homeScore;
-      result=pickScore>oppScore2?'win':'loss';
-    } else if(entry.type==='spread'){
-      // Pick label: "TeamName -3.5" or "TeamName +7"
-      var spreadMatch=pick.match(/([+-]?\d+\.?\d*)\s*$/);
-      if(spreadMatch){
-        var line=parseFloat(spreadMatch[1]);
-        var spreadTeam=pick.replace(spreadMatch[0],'').trim();
-        var stIsHome=fuzzyTeamMatch(spreadTeam,game.home_team.toLowerCase());
-        var stScore=stIsHome?homeScore:awayScore;
-        var stOpp=stIsHome?awayScore:homeScore;
-        var margin=stScore-stOpp;
-        result=margin+line>0?'win':margin+line===0?'push':'loss';
-      }
-    } else if(entry.type==='ou'){
-      var ouLine=parseFloat((entry.pick||'').replace(/[^0-9.]/g,''));
-      if(!isNaN(ouLine)){
-        var isOver=pick.indexOf('over')>=0;
-        result=isOver?(total>ouLine?'win':total===ouLine?'push':'loss'):(total<ouLine?'win':total===ouLine?'push':'loss');
-      }
-    }
-    if(result){
-      entry.result=result;
-      entry.gradedAt=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      newlyGraded++;
-    }
-  });
-  if(newlyGraded>0){ savePickAccuracy(); renderAccuracyTab(); }
+    if(newlyGraded>0){ savePickAccuracy(); renderAccuracyTab(); }
+  } catch(e){ console.log('gradePicksFromScores error:',e); }
 }
 
 // Fuzzy team match - handles "UNC" -> "North Carolina", "Kansas Jayhawks" -> "Kansas"
@@ -1871,19 +1909,27 @@ async function generatePicks(){
 
   if(!allGamesData.length){
     if(!API_KEY){renderPicksNoData();return;}
-    try{
-      var params='odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey='+API_KEY;
-      var base='https://api.the-odds-api.com/v4/sports/';
-      var results=await Promise.allSettled([
-        fetch(base+'basketball_ncaab/'+params).then(function(r){return r.ok?r.json():[];}),
-        fetch(base+'basketball_ncaab_championship/'+params).then(function(r){return r.ok?r.json():[];})
-      ]);
-      var d1=(results[0].status==='fulfilled'&&Array.isArray(results[0].value))?results[0].value:[];
-      var d2=(results[1].status==='fulfilled'&&Array.isArray(results[1].value))?results[1].value:[];
-      d1.forEach(function(g){g._league='ncaab';}); d2.forEach(function(g){g._league='tournament';});
-      var combined=d1.concat(d2);
-      allGamesData=combined.map(function(g){return transformGame(g,'all');}).filter(Boolean);
-    } catch(e){renderPicksNoData();return;}
+    // Use cached odds if available - avoids burning extra API credits
+    if(!cacheExpired()&&oddsCache){
+      var cached=oddsCache.data;
+      allGamesData=cached.map(function(g){return transformGame(g,selectedBookmaker);}).filter(Boolean);
+    } else {
+      // Only fetch if no cache available
+      try{
+        var params='odds?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey='+API_KEY;
+        var base='https://api.the-odds-api.com/v4/sports/';
+        var results=await Promise.allSettled([
+          fetch(base+'basketball_ncaab/'+params).then(function(r){return r.ok?r.json():[];}),
+          fetch(base+'basketball_ncaab_championship/'+params).then(function(r){return r.ok?r.json():[];})
+        ]);
+        var d1=(results[0].status==='fulfilled'&&Array.isArray(results[0].value))?results[0].value:[];
+        var d2=(results[1].status==='fulfilled'&&Array.isArray(results[1].value))?results[1].value:[];
+        d1.forEach(function(g){g._league='ncaab';}); d2.forEach(function(g){g._league='tournament';});
+        var combined=d1.concat(d2);
+        oddsCache={data:combined,timestamp:Date.now()};
+        allGamesData=combined.map(function(g){return transformGame(g,selectedBookmaker);}).filter(Boolean);
+      } catch(e){renderPicksNoData();return;}
+    }
   }
 
   document.getElementById('picks-loading').style.display='none';
