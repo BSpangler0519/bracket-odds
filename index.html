@@ -846,7 +846,7 @@ function renderFilteredGames(){
 async function fetchOdds(){
   if(!API_KEY){renderOddsError('add_key');return;}
   var btn=document.getElementById('refresh-btn');
-  btn.disabled=true; btn.textContent='...';
+  btn.disabled=true; btn.innerHTML='...';
 
   if(!cacheExpired()&&oddsCache){
     var cached=oddsCache.data;
@@ -860,7 +860,7 @@ async function fetchOdds(){
     }
     document.getElementById('last-updated').textContent='Updated '+new Date(oddsCache.timestamp).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+' (cached)';
     updateCacheUI();
-    btn.disabled=false; btn.textContent='&#8635;';
+    btn.disabled=false; btn.innerHTML='&#8635;';
     return;
   }
 
@@ -903,7 +903,7 @@ async function fetchOdds(){
     document.getElementById('odds-loading').style.display='none';
     renderOddsError(e.message);
   }
-  btn.disabled=false; btn.textContent='&#8635;';
+  btn.disabled=false; btn.innerHTML='&#8635;';
 }
 
 function renderOddsError(msg){
@@ -1507,11 +1507,11 @@ function clearBulkCustomStats(){
 // ============================================================
 async function refreshAll(){
   var btn=document.getElementById('refresh-btn');
-  btn.disabled=true; btn.textContent='...';
+  btn.disabled=true; btn.innerHTML='...';
   await fetchOdds();
   await checkPendingBets();
   await generatePicks();
-  btn.disabled=false; btn.textContent='&#8635;';
+  btn.disabled=false; btn.innerHTML='&#8635;';
 }
 
 // ============================================================
