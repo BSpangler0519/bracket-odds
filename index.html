@@ -917,27 +917,50 @@ function renderOddsError(msg){
 }
 
 function transformGame(g, bookKey){
-  // Pick bookmaker
-  var bk;
-  if(!bookKey || bookKey==='all'){
-    // Use first available bookmaker
-    bk = g.bookmakers && g.bookmakers[0];
-  } else {
-    bk = g.bookmakers && g.bookmakers.find(function(b){return b.key===bookKey;});
-    if(!bk) bk = g.bookmakers && g.bookmakers[0];
-  }
-  if(!bk) return null;
-
   // Attach raw bookmakers for selector
   g._rawBookmakers = g.bookmakers;
 
-  var h2h=(bk.markets||[]).find(function(m){return m.key==='h2h';});
-  var spr=(bk.markets||[]).find(function(m){return m.key==='spreads';});
-  var tot=(bk.markets||[]).find(function(m){return m.key==='totals';});
+  var books = g.bookmakers || [];
+  if(!books.length) return null;
+
+  // Count how many markets a bookmaker has (h2h=1, spreads=2, totals=4 - bitmask score)
+  function bookScore(b){
+    var keys = (b.markets||[]).map(function(m){return m.key;});
+    return (keys.indexOf('h2h')>-1?1:0) + (keys.indexOf('spreads')>-1?2:0) + (keys.indexOf('totals')>-1?4:0);
+  }
+
+  var bk;
+  if(!bookKey || bookKey==='all'){
+    // BEST: pick the bookmaker with the most complete set of markets (h2h + spreads + totals)
+    bk = books.reduce(function(best, b){
+      return bookScore(b) > bookScore(best) ? b : best;
+    }, books[0]);
+  } else {
+    bk = books.find(function(b){return b.key===bookKey;});
+    if(!bk) bk = books[0];
+  }
+  if(!bk) return null;
+
+  var home=g.home_team, away=g.away_team;
+
+  // For each market, use selected book first, fall back to any book that has it
+  function getMarket(key){
+    var m = (bk.markets||[]).find(function(m){return m.key===key;});
+    if(m) return m;
+    // Fallback: find any bookmaker with this market
+    for(var i=0;i<books.length;i++){
+      m = (books[i].markets||[]).find(function(m){return m.key===key;});
+      if(m) return m;
+    }
+    return null;
+  }
+
+  var h2h=getMarket('h2h');
+  var spr=getMarket('spreads');
+  var tot=getMarket('totals');
   var h2hO=h2h?h2h.outcomes:[];
   var sprO=spr?spr.outcomes:[];
   var totO=tot?tot.outcomes:[];
-  var home=g.home_team, away=g.away_team;
   var homeML=h2hO.find(function(o){return o.name===home;});
   var awayML=h2hO.find(function(o){return o.name===away;});
   var homeSpread=sprO.find(function(o){return o.name===home;});
