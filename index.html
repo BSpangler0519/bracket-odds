@@ -428,15 +428,25 @@ button{cursor:pointer}
 
     <!-- ACCURACY PANEL -->
     <div id="accuracy-panel" style="display:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div style="font-size:10px;color:#f59e0b;letter-spacing:2px">AI PICK ACCURACY</div>
-        <button onclick="clearPickAccuracy()" style="background:rgba(249,115,22,0.1);border:1px solid #f97316;border-radius:8px;color:#f97316;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:1px;font-family:inherit">&#128465; RESET</button>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button id="acc-btn-ai" onclick="switchAccuracyView('ai')" style="flex:1;padding:8px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;font-size:10px;font-weight:700;letter-spacing:1px;font-family:inherit">AI PICKS</button>
+        <button id="acc-btn-bets" onclick="switchAccuracyView('bets')" style="flex:1;padding:8px;background:transparent;border:1px solid #2a3a4a;border-radius:8px;color:#445566;font-size:10px;font-weight:700;letter-spacing:1px;font-family:inherit">MY BETS</button>
+        <button id="acc-reset-btn" onclick="clearPickAccuracy()" style="background:rgba(249,115,22,0.1);border:1px solid #f97316;border-radius:8px;color:#f97316;padding:8px 12px;font-size:10px;font-weight:700;letter-spacing:1px;font-family:inherit">&#128465;</button>
       </div>
-      <div style="font-size:10px;color:#445566;margin-bottom:14px">Grades all AI picks after games finish &mdash; independent of your bets</div>
-      <div id="accuracy-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px"></div>
-      <div id="accuracy-breakdown" style="background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:14px;margin-bottom:14px"></div>
-      <div style="font-size:10px;color:#7a8fa6;letter-spacing:1px;margin-bottom:8px">RECENTLY GRADED PICKS</div>
-      <div id="accuracy-recent"></div>
+      <div id="acc-view-ai">
+        <div style="font-size:10px;color:#445566;margin-bottom:12px">All AI picks graded after games finish &mdash; independent of your bets</div>
+        <div id="accuracy-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px"></div>
+        <div id="accuracy-breakdown" style="background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:14px;margin-bottom:14px"></div>
+        <div style="font-size:10px;color:#7a8fa6;letter-spacing:1px;margin-bottom:8px">RECENTLY GRADED PICKS</div>
+        <div id="accuracy-recent"></div>
+      </div>
+      <div id="acc-view-bets" style="display:none">
+        <div style="font-size:10px;color:#445566;margin-bottom:12px">Your actual bet results &mdash; manual and from picks</div>
+        <div id="bet-accuracy-summary" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px"></div>
+        <div id="bet-accuracy-breakdown" style="background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:14px;margin-bottom:14px"></div>
+        <div style="font-size:10px;color:#7a8fa6;letter-spacing:1px;margin-bottom:8px">RECENT BETS</div>
+        <div id="bet-accuracy-recent"></div>
+      </div>
     </div>
   </div>
 
@@ -624,6 +634,7 @@ var editPanelOpen = false;
 var selectedBookmaker = localStorage.getItem('preferredBook') || 'all';
 var currentBetsSubTab = 'pending-panel';
 var currentToolsSubTab = 'calc-panel';
+var currentAccuracyView = 'ai';
 
 var historyData = JSON.parse(localStorage.getItem('betHistory') || 'null') || [
   {id:1,desc:'Duke ML -145',wager:50,result:'Win',payout:84.48,date:'Mar 28'},
@@ -2189,7 +2200,25 @@ function clearPickAccuracy(){
   if(!confirm('Clear all pick accuracy data?')) return;
   pickAccuracy=[]; savePickAccuracy(); renderAccuracyTab();
 }
+function switchAccuracyView(view){
+  currentAccuracyView=view;
+  var aiBtn=document.getElementById('acc-btn-ai');
+  var betsBtn=document.getElementById('acc-btn-bets');
+  var aiView=document.getElementById('acc-view-ai');
+  var betsView=document.getElementById('acc-view-bets');
+  if(view==='ai'){
+    aiBtn.style.background='rgba(245,158,11,0.15)'; aiBtn.style.borderColor='#f59e0b'; aiBtn.style.color='#f59e0b';
+    betsBtn.style.background='transparent'; betsBtn.style.borderColor='#2a3a4a'; betsBtn.style.color='#445566';
+    aiView.style.display='block'; betsView.style.display='none';
+  } else {
+    betsBtn.style.background='rgba(56,189,248,0.15)'; betsBtn.style.borderColor='#38bdf8'; betsBtn.style.color='#38bdf8';
+    aiBtn.style.background='transparent'; aiBtn.style.borderColor='#2a3a4a'; aiBtn.style.color='#445566';
+    betsView.style.display='block'; aiView.style.display='none';
+    renderBetAccuracy();
+  }
+}
 function renderAccuracyTab(){
+  // AI PICKS view
   var graded=pickAccuracy.filter(function(a){return a.result;});
   var pending=pickAccuracy.filter(function(a){return !a.result;});
   var wins=graded.filter(function(a){return a.result==='win';}).length;
@@ -2200,8 +2229,8 @@ function renderAccuracyTab(){
   var pctColor=total&&parseFloat(winPct)>=52.4?'#34d399':'#f97316';
   var summaryEl=document.getElementById('accuracy-summary');
   if(!summaryEl) return;
-  summaryEl.innerHTML=accCard('#f59e0b',total||'0','GRADED')+accCard(pctColor,total?winPct+'%':'--','WIN RATE')+accCard('#34d399',wins,'WINS')+accCard('#f97316',losses,'LOSSES');
   function accCard(col,val,lbl){ return '<div style="background:#111825;border:1px solid #1a2a3a;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:'+col+'">'+val+'</div><div style="font-size:9px;color:#556677;letter-spacing:1px;margin-top:3px">'+lbl+'</div></div>'; }
+  summaryEl.innerHTML=accCard('#f59e0b',total||'0','GRADED')+accCard(pctColor,total?winPct+'%':'--','WIN RATE')+accCard('#34d399',wins,'WINS')+accCard('#f97316',losses,'LOSSES');
   var typeColors={ml:'#38bdf8',spread:'#c084fc',ou:'#34d399',mismatch:'#f97316'};
   var typeLabels={ml:'MONEYLINE',spread:'SPREAD',ou:'OVER/UNDER',mismatch:'MISMATCH'};
   var breakdownEl=document.getElementById('accuracy-breakdown');
@@ -2230,6 +2259,48 @@ function renderAccuracyTab(){
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div><div style="font-size:11px;color:#e0e6f0;font-weight:700">'+a.gameLabel+'</div><div style="font-size:10px;color:#556677;margin-top:2px">'+a.date+' &middot; '+a.typeLabel+'</div></div><span style="font-size:9px;font-weight:700;color:'+resColor+';background:'+resColor+'22;padding:3px 8px;border-radius:8px">'+resLabel+'</span></div>'
       +'<div style="font-size:12px;color:#c0ccd8;margin-bottom:6px">'+a.pick+' <span style="color:'+(a.odds>0?'#38bdf8':'#c084fc')+'">'+fmt(a.odds)+'</span> <span style="font-size:10px;color:#556677">&middot; Edge: '+a.edge+'% &middot; '+a.stars+'&#9733;</span></div>'
       +(!a.result?'<div style="display:flex;gap:6px"><button onclick="gradePickAccuracy(this.dataset.id,\'win\')" data-id="'+a.id+'" style="flex:1;padding:5px;background:rgba(52,211,153,0.1);border:1px solid #34d399;border-radius:6px;color:#34d399;font-size:10px;font-weight:700;font-family:inherit">WIN</button><button onclick="gradePickAccuracy(this.dataset.id,\'loss\')" data-id="'+a.id+'" style="flex:1;padding:5px;background:rgba(249,115,22,0.1);border:1px solid #f97316;border-radius:6px;color:#f97316;font-size:10px;font-weight:700;font-family:inherit">LOSS</button><button onclick="gradePickAccuracy(this.dataset.id,\'push\')" data-id="'+a.id+'" style="flex:1;padding:5px;background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:6px;color:#f59e0b;font-size:10px;font-weight:700;font-family:inherit">PUSH</button></div>':'')
+      +'</div>';
+  }).join('');
+  // If currently on MY BETS view, refresh that too
+  if(currentAccuracyView==='bets') renderBetAccuracy();
+}
+function renderBetAccuracy(){
+  var bets=historyData.filter(function(h){return h.result==='Win'||h.result==='Loss'||h.result==='Push';});
+  var wins=bets.filter(function(h){return h.result==='Win';}).length;
+  var losses=bets.filter(function(h){return h.result==='Loss';}).length;
+  var pushes=bets.filter(function(h){return h.result==='Push';}).length;
+  var total=wins+losses+pushes;
+  var winPct=total?(wins/total*100).toFixed(1):'--';
+  var wagered=bets.reduce(function(a,h){return a+h.wager;},0);
+  var returned=bets.filter(function(h){return h.result==='Win';}).reduce(function(a,h){return a+h.payout;},0);
+  var roi=wagered>0?(((returned-wagered)/wagered)*100).toFixed(1):'--';
+  var pctColor=total&&parseFloat(winPct)>=52.4?'#34d399':'#f97316';
+  var roiColor=roi!=='--'&&parseFloat(roi)>=0?'#34d399':'#f97316';
+  function accCard(col,val,lbl){ return '<div style="background:#111825;border:1px solid #1a2a3a;border-radius:12px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:'+col+'">'+val+'</div><div style="font-size:9px;color:#556677;letter-spacing:1px;margin-top:3px">'+lbl+'</div></div>'; }
+  var summaryEl=document.getElementById('bet-accuracy-summary');
+  if(summaryEl) summaryEl.innerHTML=accCard('#f59e0b',total||'0','BETS')+accCard(pctColor,total?winPct+'%':'--','WIN RATE')+accCard('#34d399',wins,'WINS')+accCard(roiColor,roi!=='--'?roi+'%':'--','ROI');
+  // Breakdown by result
+  var breakdownEl=document.getElementById('bet-accuracy-breakdown');
+  var bhtml='<div style="font-size:10px;color:#38bdf8;letter-spacing:2px;margin-bottom:12px">SUMMARY</div>';
+  if(!bets.length){ bhtml+='<div style="font-size:12px;color:#445566;text-align:center;padding:10px">No bets logged yet.</div>'; }
+  else {
+    var profitLoss=returned-wagered;
+    bhtml+='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;color:#7a8fa6">Total wagered</span><span style="font-size:12px;font-weight:700;color:#fff">$'+wagered.toFixed(2)+'</span></div>';
+    bhtml+='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;color:#7a8fa6">Total returned</span><span style="font-size:12px;font-weight:700;color:#fff">$'+returned.toFixed(2)+'</span></div>';
+    bhtml+='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;color:#7a8fa6">Profit / Loss</span><span style="font-size:13px;font-weight:700;color:'+(profitLoss>=0?'#34d399':'#f97316')+'">'+(profitLoss>=0?'+':'')+profitLoss.toFixed(2)+'</span></div>';
+    if(pushes>0) bhtml+='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;color:#7a8fa6">Pushes</span><span style="font-size:12px;font-weight:700;color:#f59e0b">'+pushes+'</span></div>';
+    bhtml+='<div style="font-size:9px;color:#334455;margin-top:4px">Breakeven at -110 = 52.4%</div>';
+  }
+  if(breakdownEl) breakdownEl.innerHTML=bhtml;
+  var recentEl=document.getElementById('bet-accuracy-recent');
+  if(!recentEl) return;
+  if(!bets.length){ recentEl.innerHTML='<div class="empty" style="font-size:12px">No bets logged yet.</div>'; return; }
+  recentEl.innerHTML=bets.slice(0,20).map(function(h){
+    var resColor=h.result==='Win'?'#34d399':h.result==='Loss'?'#f97316':'#f59e0b';
+    var profit=h.result==='Win'?'+'+(h.payout-h.wager).toFixed(2):h.result==='Push'?'0.00':'-'+h.wager.toFixed(2);
+    return '<div style="background:#111825;border:1px solid #1a2535;border-left:3px solid '+resColor+';border-radius:10px;padding:11px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
+      +'<div style="flex:1"><div style="font-size:12px;font-weight:700;color:#e0e6f0">'+h.desc+'</div><div style="font-size:10px;color:#556677;margin-top:2px">'+h.date+' &middot; Wagered $'+h.wager+'</div></div>'
+      +'<div style="text-align:right;margin-left:10px"><span style="font-size:9px;font-weight:700;color:'+resColor+';background:'+resColor+'22;padding:3px 8px;border-radius:8px">'+h.result.toUpperCase()+'</span><div style="font-size:13px;font-weight:700;color:'+resColor+';margin-top:4px">$'+profit+'</div></div>'
       +'</div>';
   }).join('');
 }
