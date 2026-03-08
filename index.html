@@ -297,18 +297,18 @@ button{cursor:pointer}
           <span>Claude is analyzing today's matchups...</span>
         </div>
       </div>
-      <div id="picks-list"></div>
-      <div id="picks-empty" class="empty" style="display:none">No picks available yet.<br/><span style="font-size:11px">Picks are generated from live odds + team stats.<br/>Tap Refresh or check back when games are scheduled.</span></div>
       <!-- Suggested Parlay -->
-      <div id="picks-parlay-box" style="display:none;margin-top:14px;background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:14px">
-        <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:10px">SUGGESTED PARLAY</div>
+      <div id="picks-parlay-box" style="display:none;margin-bottom:14px;background:linear-gradient(135deg,#141a08,#1e2a0a);border:1px solid #4a6a10;border-radius:14px;padding:14px">
+        <div style="font-size:10px;color:#f59e0b;letter-spacing:2px;margin-bottom:10px">&#9889; SUGGESTED PARLAY</div>
         <div id="picks-parlay-legs"></div>
         <div id="picks-parlay-summary"></div>
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button onclick="addParlayToSlip()" style="flex:1;padding:10px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;font-size:12px;font-weight:700;font-family:inherit">ADD TO SLIP</button>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button onclick="addParlayToSlip()" style="flex:1;padding:10px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;font-size:12px;font-weight:700;font-family:inherit">+ ADD TO SLIP</button>
           <button onclick="addParlayToBet()" style="flex:1;padding:10px;background:#f59e0b;border:none;border-radius:8px;color:#080c17;font-size:12px;font-weight:700;font-family:inherit">+ BET PARLAY</button>
         </div>
       </div>
+      <div id="picks-list"></div>
+      <div id="picks-empty" class="empty" style="display:none">No picks available yet.<br/><span style="font-size:11px">Picks are generated from live odds + team stats.<br/>Tap Refresh or check back when games are scheduled.</span></div>
     </div>
 
     <!-- SLIP PANEL -->
