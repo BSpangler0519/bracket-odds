@@ -774,19 +774,23 @@ function buildBookSelector(games){
   availableBooks = Object.keys(books).map(function(k){return{key:k,title:books[k]};});
   if(availableBooks.length <= 1){ document.getElementById('book-selector-row').style.display='none'; return; }
   document.getElementById('book-selector-row').style.display='block';
-  var html = '<button class="book-btn'+(selectedBookmaker==='all'?' active':'')+'" onclick="selectBook(\'all\')">BEST</button>';
+  // If preferred book not in response, fall back to 'all' silently
+  var preferred=localStorage.getItem('preferredBook')||'all';
+  var prefAvail=preferred==='all'||availableBooks.some(function(b){return b.key===preferred;});
+  if(!prefAvail) selectedBookmaker='all';
+  var html = '<button class="book-btn'+(selectedBookmaker==='all'?' active':'')+'" data-key="all" onclick="selectBook(\'all\')">BEST</button>';
   availableBooks.forEach(function(b){
-    html += '<button class="book-btn'+(selectedBookmaker===b.key?' active':'')+'" onclick="selectBook(\''+b.key+'\')">'+b.title.replace('DraftKings','DK').replace('FanDuel','FD').replace('BetMGM','MGM').replace('BetRivers','Rivers')+'</button>';
+    html += '<button class="book-btn'+(selectedBookmaker===b.key?' active':'')+'" data-key="'+b.key+'" onclick="selectBook(\''+b.key+'\')">'+b.title.replace('DraftKings','DK').replace('FanDuel','FD').replace('BetMGM','MGM').replace('BetRivers','Rivers').replace('Caesars','CZR')+'</button>';
   });
   document.getElementById('book-btns').innerHTML = html;
 }
 
 function selectBook(key){
   selectedBookmaker = key;
+  localStorage.setItem('preferredBook', key);
   document.querySelectorAll('.book-btn').forEach(function(b){
-    b.classList.toggle('active', b.textContent.toLowerCase()===key || (key==='all'&&b.textContent==='BEST'));
+    b.classList.toggle('active', b.getAttribute('data-key')===key);
   });
-  // Re-transform games with selected book
   if(window._rawGamesData){
     allGamesData = window._rawGamesData.map(function(g){ return transformGame(g, key); }).filter(Boolean);
     renderFilteredGames();
