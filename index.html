@@ -1962,7 +1962,7 @@ async function generatePicks(){
       var bestML=homeEdge>awayEdge?{team:g.home,odds:g.homeML,edge:homeEdge,prob:statWinProb}:{team:g.away,odds:g.awayML,edge:awayEdge,prob:100-statWinProb};
       if(Math.abs(bestML.edge)>2){
         var stars=edgeToStars(Math.abs(bestML.edge),3,6,10);
-        allPicks.push({type:'ml',typeLabel:'MONEYLINE',game:g,pick:bestML.team+' ML',odds:bestML.odds,stars:stars,edge:bestML.edge.toFixed(1),reason:bestML.team+' stats imply '+bestML.prob.toFixed(0)+'% win prob vs '+homeImpl.toFixed(0)+'% market &mdash; '+Math.abs(bestML.edge).toFixed(1)+'% edge',sortScore:Math.abs(bestML.edge)*stars});
+        allPicks.push({type:'ml',typeLabel:'MONEYLINE',game:g,pick:bestML.team+' ML',odds:bestML.odds,stars:stars,edge:bestML.edge.toFixed(1),reason:bestML.team+' stats imply '+bestML.prob.toFixed(0)+'% win prob vs '+homeImpl.toFixed(0)+'% market &mdash; '+Math.abs(bestML.edge).toFixed(1)+'% edge',sortScore:100+Math.abs(bestML.edge)*stars});
       }
       if(g.spread!=null){
         var expectedMargin=netDiff*0.4;
@@ -1973,7 +1973,7 @@ async function generatePicks(){
         else if(spreadEdge<-1.5){spreadPick=g.away+' +'+(Math.abs(g.spread));spreadReason='Stats suggest '+g.away+' keeps it closer than '+Math.abs(g.spread)+' pt spread';}
         if(spreadPick){
           var ss=edgeToStars(Math.abs(spreadEdge),2,4,7);
-          allPicks.push({type:'spread',typeLabel:'SPREAD',game:g,pick:spreadPick,odds:g.spreadOdds,stars:ss,edge:spreadEdge.toFixed(1),reason:spreadReason,sortScore:Math.abs(spreadEdge)*ss});
+          allPicks.push({type:'spread',typeLabel:'SPREAD',game:g,pick:spreadPick,odds:g.spreadOdds,stars:ss,edge:spreadEdge.toFixed(1),reason:spreadReason,sortScore:100+Math.abs(spreadEdge)*ss});
         }
       }
       if(g.total!=null){
@@ -1994,7 +1994,7 @@ async function generatePicks(){
         else if(ouEdge<-3){ouPick='Under '+g.total;ouReason='Projected total '+projTotal.toFixed(1)+' pts &mdash; defensive matchup, stay under '+g.total;}
         if(ouPick){
           var os=edgeToStars(Math.abs(ouEdge),3,6,10);
-          allPicks.push({type:'ou',typeLabel:'OVER/UNDER',game:g,pick:ouPick,odds:-110,stars:os,edge:ouEdge.toFixed(1),reason:ouReason,sortScore:Math.abs(ouEdge)*os});
+          allPicks.push({type:'ou',typeLabel:'OVER/UNDER',game:g,pick:ouPick,odds:-110,stars:os,edge:ouEdge.toFixed(1),reason:ouReason,sortScore:100+Math.abs(ouEdge)*os});
         }
       }
       var netGap=Math.abs(net1-net2);
@@ -2002,7 +2002,7 @@ async function generatePicks(){
         var strongTeam=net1>net2?g.home:g.away;
         var weakTeam=net1>net2?g.away:g.home;
         var ms=edgeToStars(netGap,8,12,18);
-        allPicks.push({type:'mismatch',typeLabel:'MISMATCH',game:g,pick:strongTeam+' ML / Cover',odds:net1>net2?g.homeML:g.awayML,stars:ms,edge:netGap.toFixed(1),reason:strongTeam+' Net +'+Math.max(net1,net2).toFixed(1)+' vs '+weakTeam+' '+Math.min(net1,net2).toFixed(1)+' &mdash; '+netGap.toFixed(0)+' pt gap signals blowout potential',sortScore:netGap*ms});
+        allPicks.push({type:'mismatch',typeLabel:'MISMATCH',game:g,pick:strongTeam+' ML / Cover',odds:net1>net2?g.homeML:g.awayML,stars:ms,edge:netGap.toFixed(1),reason:strongTeam+' Net +'+Math.max(net1,net2).toFixed(1)+' vs '+weakTeam+' '+Math.min(net1,net2).toFixed(1)+' &mdash; '+netGap.toFixed(0)+' pt gap signals blowout potential',sortScore:50+netGap*ms*0.3});
       }
     } else {
       var op=oddsOnlyPick(g); if(op) allPicks.push(op);
@@ -2032,7 +2032,7 @@ function oddsOnlyPick(g){
   var favTeam=trueHome>trueAway?g.home:g.away;
   var favOdds=trueHome>trueAway?g.homeML:g.awayML;
   var stars=edgeToStars(favProb,62,70,80);
-  return {type:'ml',typeLabel:'MONEYLINE',game:g,pick:favTeam+' ML',odds:favOdds,stars:stars,edge:(favProb-(favOdds<0?Math.abs(favOdds)/(Math.abs(favOdds)+100)*100:100/(favOdds+100)*100)).toFixed(1),reason:'Market prices '+favTeam+' at '+favProb.toFixed(0)+'% true win probability &mdash; strong favorite',sortScore:favProb*stars*0.5};
+  return {type:'ml',typeLabel:'MONEYLINE',game:g,pick:favTeam+' ML',odds:favOdds,stars:stars,edge:(favProb-(favOdds<0?Math.abs(favOdds)/(Math.abs(favOdds)+100)*100:100/(favOdds+100)*100)).toFixed(1),reason:'Market prices '+favTeam+' at '+favProb.toFixed(0)+'% true win probability &mdash; strong favorite',sortScore:30+favProb*stars*0.05};
 }
 function edgeToStars(val,one,two,three){
   if(val>=three) return 5;
