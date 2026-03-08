@@ -2056,7 +2056,7 @@ function filterPicks(filter){
   renderPicks();
 }
 function renderPicks(){
-  var filtered=currentPickFilter==='all'?allPicks:allPicks.filter(function(p){return p.type===currentPickFilter;});
+  var filtered=currentPickFilter==='all'?allPicks.filter(function(p){return !p.isParlay;}):allPicks.filter(function(p){return p.type===currentPickFilter;});
   var el=document.getElementById('picks-list');
   var emptyEl=document.getElementById('picks-empty');
   if(!filtered.length){el.innerHTML='';emptyEl.style.display='block';return;}
