@@ -630,11 +630,7 @@ var currentBetsSubTab = 'pending-panel';
 var currentToolsSubTab = 'calc-panel';
 var currentAccuracyView = 'ai';
 
-var historyData = JSON.parse(localStorage.getItem('betHistory') || 'null') || [
-  {id:1,desc:'Duke ML -145',wager:50,result:'Win',payout:84.48,date:'Mar 28'},
-  {id:2,desc:'2-Team Parlay',wager:25,result:'Loss',payout:0,date:'Mar 27'},
-  {id:3,desc:'Kansas +2.5 -110',wager:100,result:'Win',payout:190.91,date:'Mar 25'}
-];
+var historyData = JSON.parse(localStorage.getItem('betHistory') || 'null') || [];
 var pendingBets = JSON.parse(localStorage.getItem('pendingBets') || '[]');
 var pickAccuracy = JSON.parse(localStorage.getItem('pickAccuracy') || '[]');
 var prevOddsSnapshot = JSON.parse(localStorage.getItem('prevOddsSnapshot') || '{}');
