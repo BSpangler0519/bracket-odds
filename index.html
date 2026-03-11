@@ -669,18 +669,31 @@ function toggleTheme(){
   applyTheme();
 }
 var SHOW_SPLASH = true;
+function dismissSplash(){
+  var splash=document.getElementById('splash-screen');
+  if(!splash||splash.style.display==='none') return;
+  splash.removeEventListener('click', dismissSplash);
+  splash.style.transition='opacity 0.8s'; splash.style.opacity='0';
+  setTimeout(function(){
+    splash.style.display='none';
+    if(API_KEY) launchApp(); else showSetup();
+  },800);
+}
 window.onload = function(){
   applyTheme();
   if(SHOW_SPLASH){
     var splash=document.getElementById('splash-screen');
     if(splash){
-      setTimeout(function(){
-        splash.style.transition='opacity 0.8s'; splash.style.opacity='0';
-        setTimeout(function(){ splash.style.display='none'; if(API_KEY) launchApp(); },800);
-      },5000); return;
+      splash.addEventListener('click', dismissSplash);
+      splash.addEventListener('touchend', function(e){ e.preventDefault(); dismissSplash(); });
+      // Show tap hint after 3s
+      setTimeout(function(){ var h=document.getElementById('splash-hint'); if(h) h.style.opacity='1'; },3000);
+      // Safety auto-dismiss after 30s
+      setTimeout(dismissSplash, 30000);
+      return;
     }
   }
-  if(API_KEY) launchApp();
+  if(API_KEY) launchApp(); else showSetup();
 };
 
 // ============================================================
