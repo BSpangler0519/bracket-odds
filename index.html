@@ -1744,7 +1744,7 @@ function manualResolveBet(id,result){
 function resolveBet(bet,result){
   var payout=result==='Win'?parseFloat((bet.wager*aToDec(bet.odds)).toFixed(2)):result==='Push'?bet.wager:0;
   var gameDate=new Date(bet.gametime).toLocaleDateString([],{month:'short',day:'numeric'});
-  historyData.unshift({id:Date.now(),desc:bet.label+' ('+fmt(bet.odds)+')',wager:bet.wager,result:result,payout:payout,date:gameDate});
+  historyData.unshift({id:Date.now(),desc:bet.label+' ('+fmt(bet.odds)+')',type:bet.type||'ml',wager:bet.wager,result:result,payout:payout,date:gameDate});
   saveHistory();
   // Grade matching accuracy entry by type + team name
   var accResult=result==='Win'?'win':result==='Loss'?'loss':result==='Push'?'push':null;
@@ -2289,7 +2289,10 @@ function renderBetAccuracy(){
       if(d.indexOf('parlay')>=0) return 'parlay';
       if(d.indexOf(' ml')>=0||d.indexOf('moneyline')>=0) return 'ml';
       if(d.indexOf('over')>=0||d.indexOf('under')>=0||d.indexOf('o/u')>=0) return 'ou';
-      if(d.match(/[+-]\d+(\.\d+)?\s*$|spread/)) return 'spread';
+      // Spread: look for a number < 100 with +/- (spread lines are small; odds are 3 digits)
+      if(d.indexOf('spread')>=0) return 'spread';
+      var spreadMatch=d.match(/[+-](\d+(\.5)?)(?:\s|$)/);
+      if(spreadMatch&&parseFloat(spreadMatch[1])<50) return 'spread';
       return 'ml'; // default
     }
     var typeColors={ml:'#38bdf8',spread:'#c084fc',ou:'#34d399',parlay:'#f59e0b'};
