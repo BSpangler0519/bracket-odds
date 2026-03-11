@@ -1765,7 +1765,8 @@ function renderPendingBets(){
   if(!pendingBets.length){listEl.innerHTML='';emptyEl.style.display='block';return;}
   emptyEl.style.display='none';
   var now=new Date();
-  listEl.innerHTML=pendingBets.map(function(b){
+  var sortedPending=pendingBets.slice().sort(function(a,b){return new Date(a.gametime)-new Date(b.gametime);});
+  listEl.innerHTML=sortedPending.map(function(b){
     var gameTime=new Date(b.gametime);
     var isPast=gameTime<now;
     var timeStr=gameTime.toLocaleDateString([],{month:'short',day:'numeric'})+' '+gameTime.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
