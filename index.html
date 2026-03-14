@@ -744,6 +744,7 @@ var pendingBets = JSON.parse(localStorage.getItem('pendingBets') || '[]');
 var pickAccuracy = JSON.parse(localStorage.getItem('pickAccuracy') || '[]');
 var prevOddsSnapshot = JSON.parse(localStorage.getItem('prevOddsSnapshot') || '{}');
 var gameFlags = JSON.parse(localStorage.getItem('gameFlags') || '{}'); // {gameId: {injury_home, injury_away, fatigue_home, fatigue_away, note}}
+var analysisCache = JSON.parse(localStorage.getItem('analysisCache') || '{}'); // {gameId: {text, ts}}
 
 // Cache
 var CACHE_MINUTES = 30;
@@ -2759,6 +2760,9 @@ function renderBetAccuracy(){
 // HISTORY / LOG
 // ============================================================
 function saveGameFlags(){ localStorage.setItem('gameFlags',JSON.stringify(gameFlags)); }
+function saveAnalysisCache(){ localStorage.setItem('analysisCache',JSON.stringify(analysisCache)); }
+// Purge analysis cache entries older than 24 hours on load
+(function(){var now=Date.now();Object.keys(analysisCache).forEach(function(k){if(now-(analysisCache[k].ts||0)>86400000)delete analysisCache[k];});saveAnalysisCache();})();
 function saveHistory(){ localStorage.setItem('betHistory',JSON.stringify(historyData)); }
 function clearHistory(){ if(!confirm('Delete all bet history?')) return; historyData=[]; saveHistory(); renderHistory(); }
 function deleteHistoryItem(id){ historyData=historyData.filter(function(h){return h.id!==id;}); saveHistory(); renderHistory(); }
@@ -2877,8 +2881,25 @@ function closeSpreadPicker(){
 function openGameAnalysis(gameId, away, home){
   currentAnalysisGame = {id:gameId, away:away, home:home};
   document.getElementById('game-analysis-title').textContent = away + ' @ ' + home;
-  document.getElementById('game-analysis-content').innerHTML = '<span style="color:#445566">Tap ANALYZE to get Claude\'s take on this matchup.</span>';
   document.getElementById('game-analysis-loading').style.display='none';
+
+  // Show cached analysis if available
+  var cached = analysisCache[gameId];
+  if(cached && cached.text){
+    var ageMin = Math.round((Date.now() - cached.ts) / 60000);
+    var ageLabel = ageMin < 60 ? ageMin+'m ago' : Math.round(ageMin/60)+'h ago';
+    document.getElementById('game-analysis-content').innerHTML =
+      '<div style="font-size:9px;color:#445566;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">'
+      +'<span style="color:#38bdf8">&#9679; Cached analysis ('+ageLabel+')</span>'
+      +'<button onclick="clearAnalysisCache()" style="background:none;border:none;color:#445566;font-size:9px;font-family:inherit;cursor:pointer;text-decoration:underline">clear</button>'
+      +'</div>'
+      + cached.text
+        .replace(/\*\*(.*?)\*\*/g,'<strong style="color:#fff">$1</strong>')
+        .replace(/\n\n/g,'<br/><br/>').replace(/\n/g,'<br/>');
+  } else {
+    document.getElementById('game-analysis-content').innerHTML = '<span style="color:#445566">Tap ANALYZE to get Claude\'s take on this matchup.</span>';
+  }
+
   // Load existing flags
   var f = gameFlags[gameId] || {};
   document.getElementById('game-flag-note').value = f.note || '';
@@ -2897,6 +2918,13 @@ function openGameAnalysis(gameId, away, home){
   }).join('');
   document.getElementById('game-analysis-modal').style.display='block';
   document.body.style.overflow='hidden';
+}
+
+function clearAnalysisCache(){
+  if(!currentAnalysisGame) return;
+  delete analysisCache[currentAnalysisGame.id];
+  saveAnalysisCache();
+  document.getElementById('game-analysis-content').innerHTML = '<span style="color:#445566">Cache cleared. Tap ANALYZE to get a fresh analysis.</span>';
 }
 
 function closeGameAnalysis(){
@@ -2985,6 +3013,9 @@ async function _runGameAnalysisInner(){
     if(!response.ok){var err=await response.json().catch(function(){return{};});throw new Error(err.error&&err.error.message?err.error.message:'API error '+response.status);}
     var data=await response.json();
     var text=data.content&&data.content[0]&&data.content[0].text?data.content[0].text:'No response.';
+    // Cache the result
+    analysisCache[currentAnalysisGame.id] = {text:text, ts:Date.now()};
+    saveAnalysisCache();
     document.getElementById('game-analysis-content').innerHTML=text
       .replace(/\*\*(.*?)\*\*/g,'<strong style="color:#fff">$1</strong>')
       .replace(/\n\n/g,'<br/><br/>').replace(/\n/g,'<br/>');
