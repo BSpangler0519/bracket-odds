@@ -111,7 +111,14 @@ button{cursor:pointer}
 .empty{text-align:center;color:#6a7f96;padding:50px 20px;font-size:13px;line-height:2}
 #setup-screen{padding:20px}
 .setup-card{background:#111825;border:1px solid #1a2a3a;border-radius:14px;padding:20px;margin-bottom:14px}
-.api-input{width:100%;background:#080c17;border:2px solid #f59e0b;border-radius:10px;color:#fff;padding:12px;font-size:14px;margin-bottom:10px}
+.api-input{width:100%;background:#080c17;border:2px solid #f59e0b;border-radius:10px;color:#fff;padding:12px;font-size:14px;margin-bottom:6px}
+.api-input-wrap{position:relative;margin-bottom:10px}
+.api-input-wrap .api-input{margin-bottom:0}
+.api-paste-row{display:flex;gap:6px;margin-top:6px}
+.paste-btn{flex:1;padding:8px 10px;border-radius:8px;border:1px solid #f59e0b;background:rgba(245,158,11,0.1);color:#f59e0b;font-size:11px;font-weight:700;font-family:inherit;letter-spacing:0.5px;cursor:pointer}
+.paste-btn:active{background:rgba(245,158,11,0.25)}
+.show-btn{padding:8px 12px;border-radius:8px;border:1px solid #2a3a4a;background:transparent;color:#7a8fa6;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer}
+.paste-confirm{font-size:10px;color:#38bdf8;min-height:14px;margin-top:4px}
 .save-btn{width:100%;padding:13px;background:#f59e0b;border:none;border-radius:10px;color:#080c17;font-size:15px;font-weight:700}
 .skip-btn{width:100%;padding:10px;background:transparent;border:1px solid #2a3a4a;border-radius:10px;color:#667788;font-size:13px;margin-top:8px}
 .stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #151f2e}
@@ -167,7 +174,14 @@ button{cursor:pointer}
       3. Copy your key and paste below
     </div>
     <label style="font-size:9px;color:#8aa0b8;letter-spacing:1px;display:block;margin-bottom:5px">ODDS API KEY</label>
-    <input class="api-input" id="api-key-input" type="text" placeholder="Paste key here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+    <div class="api-input-wrap">
+      <input class="api-input" id="api-key-input" type="password" placeholder="Paste key here..." autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" onblur="this.value=this.value.trim()"/>
+    </div>
+    <div class="api-paste-row">
+      <button class="paste-btn" onclick="pasteFromClipboard('api-key-input','odds-paste-msg')">&#128203; PASTE FROM CLIPBOARD</button>
+      <button class="show-btn" onclick="toggleShow('api-key-input',this)">SHOW</button>
+    </div>
+    <div id="odds-paste-msg" class="paste-confirm"></div>
   </div>
   <div class="setup-card" style="border-color:#3b4fd8">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -181,7 +195,14 @@ button{cursor:pointer}
       4. Copy key (starts with <code style="color:#818cf8">sk-ant-</code>)
     </div>
     <label style="font-size:9px;color:#818cf8;letter-spacing:1px;display:block;margin-bottom:5px">CLAUDE API KEY</label>
-    <input class="api-input" id="claude-key-input" type="text" placeholder="sk-ant-... (optional)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="border-color:#3b4fd8"/>
+    <div class="api-input-wrap">
+      <input class="api-input" id="claude-key-input" type="password" placeholder="sk-ant-... (optional)" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" style="border-color:#3b4fd8" onblur="this.value=this.value.trim()"/>
+    </div>
+    <div class="api-paste-row">
+      <button class="paste-btn" onclick="pasteFromClipboard('claude-key-input','claude-paste-msg')" style="border-color:#818cf8;color:#818cf8;background:rgba(129,140,248,0.1)">&#128203; PASTE FROM CLIPBOARD</button>
+      <button class="show-btn" onclick="toggleShow('claude-key-input',this)">SHOW</button>
+    </div>
+    <div id="claude-paste-msg" class="paste-confirm"></div>
   </div>
   <button class="save-btn" onclick="saveApiKey()" style="margin-bottom:10px">Launch App &rarr;</button>
   <button class="skip-btn" onclick="skipSetup()">Skip setup - enter keys later</button>
@@ -568,7 +589,33 @@ button{cursor:pointer}
     <!-- KEYS PANEL -->
     <div id="keys-panel" style="display:none">
       <div class="tool-section" style="margin-bottom:12px">
-        <button onclick="showSetup()" style="background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:8px;color:#f59e0b;padding:7px 14px;font-size:11px;font-weight:700;letter-spacing:1px">&#9881; CHANGE API KEYS</button>
+        <div class="tool-section-title" style="margin-bottom:12px">&#128272; API KEYS</div>
+
+        <!-- Odds API Key -->
+        <label style="font-size:9px;color:#8aa0b8;letter-spacing:1px;display:block;margin-bottom:5px">ODDS API KEY</label>
+        <div class="api-input-wrap">
+          <input class="api-input" id="keys-panel-odds-input" type="password" placeholder="Paste or type your Odds API key..." autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" style="font-size:13px"/>
+        </div>
+        <div class="api-paste-row">
+          <button class="paste-btn" onclick="pasteFromClipboard('keys-panel-odds-input','kp-odds-msg')">&#128203; PASTE FROM CLIPBOARD</button>
+          <button class="show-btn" onclick="toggleShow('keys-panel-odds-input',this)">SHOW</button>
+        </div>
+        <div id="kp-odds-msg" class="paste-confirm" style="margin-bottom:10px"></div>
+
+        <!-- Claude API Key -->
+        <label style="font-size:9px;color:#818cf8;letter-spacing:1px;display:block;margin-top:4px;margin-bottom:5px">CLAUDE AI KEY <span style="color:#445566;font-size:8px">(optional)</span></label>
+        <div class="api-input-wrap">
+          <input class="api-input" id="keys-panel-claude-input" type="password" placeholder="sk-ant-... (optional)" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" style="border-color:#3b4fd8;font-size:13px"/>
+        </div>
+        <div class="api-paste-row">
+          <button class="paste-btn" onclick="pasteFromClipboard('keys-panel-claude-input','kp-claude-msg')" style="border-color:#818cf8;color:#818cf8;background:rgba(129,140,248,0.1)">&#128203; PASTE FROM CLIPBOARD</button>
+          <button class="show-btn" onclick="toggleShow('keys-panel-claude-input',this)">SHOW</button>
+        </div>
+        <div id="kp-claude-msg" class="paste-confirm" style="margin-bottom:12px"></div>
+
+        <button onclick="saveKeysFromPanel()" style="width:100%;padding:11px;background:#f59e0b;border:none;border-radius:8px;color:#080c17;font-size:13px;font-weight:700;font-family:inherit;margin-top:4px">&#10003; SAVE KEYS</button>
+        <div id="keys-panel-saved-msg" style="font-size:10px;color:#38bdf8;margin-top:6px;text-align:center;display:none">&#10003; Keys saved!</div>
+        <div style="margin-top:10px;font-size:10px;color:#445566;line-height:1.6;text-align:center">Keys are stored only on this device. Never shared with anyone.</div>
       </div>
       <!-- Preferred Bookmaker -->
       <div class="tool-section" style="margin-bottom:12px">
@@ -607,6 +654,68 @@ button{cursor:pointer}
 </div><!-- end #app -->
 
 <script>
+// ============================================================
+// CLIPBOARD PASTE HELPER — resolves mobile paste issues
+// ============================================================
+async function pasteFromClipboard(inputId, msgId) {
+  var el = document.getElementById(inputId);
+  var msg = msgId ? document.getElementById(msgId) : null;
+  function showMsg(txt, color) {
+    if (!msg) return;
+    msg.textContent = txt;
+    msg.style.color = color || '#38bdf8';
+    setTimeout(function(){ msg.textContent=''; }, 3500);
+  }
+  // Modern Clipboard API (works in most mobile browsers, requires HTTPS or localhost)
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    try {
+      var text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        el.value = text.trim();
+        el.dispatchEvent(new Event('input'));
+        showMsg('✓ Pasted! (' + text.trim().length + ' chars)');
+      } else {
+        showMsg('Clipboard appears empty. Copy your key first.', '#f59e0b');
+      }
+      return;
+    } catch(e) {
+      // Permission denied or not supported — fall through to manual instruction
+    }
+  }
+  // Fallback: focus field and prompt user to use long-press > Paste
+  el.focus();
+  el.select && el.select();
+  showMsg('Tap & hold this field → tap Paste', '#f59e0b');
+}
+
+function toggleShow(inputId, btn) {
+  var el = document.getElementById(inputId);
+  if (el.type === 'password') {
+    el.type = 'text';
+    btn.textContent = 'HIDE';
+  } else {
+    el.type = 'password';
+    btn.textContent = 'SHOW';
+  }
+}
+
+function saveKeysFromPanel() {
+  var ok = document.getElementById('keys-panel-odds-input').value.trim();
+  var ck = document.getElementById('keys-panel-claude-input').value.trim();
+  var hadOddsKey = !!API_KEY;
+  if (ok) { API_KEY = ok; localStorage.setItem('oddsApiKey', ok); }
+  if (ck) { CLAUDE_KEY = ck; localStorage.setItem('claudeApiKey', ck); }
+  // Sync setup-screen fields too
+  var si = document.getElementById('api-key-input');
+  var sc = document.getElementById('claude-key-input');
+  if(si && API_KEY) si.value = API_KEY;
+  if(sc && CLAUDE_KEY) sc.value = CLAUDE_KEY;
+  var saved = document.getElementById('keys-panel-saved-msg');
+  if (saved) { saved.style.display='block'; setTimeout(function(){ saved.style.display='none'; }, 2500); }
+  // If we just got an Odds API key for first time, start fetching
+  if (!hadOddsKey && API_KEY) { fetchOdds(); checkPendingBets(); generatePicks(); startCacheTimer(); }
+}
+
 // ============================================================
 // STATE
 // ============================================================
@@ -730,6 +839,11 @@ function initApp(){
   initPreferredBook();
   var bi=document.getElementById('bankroll-input');
   if(bi&&BANKROLL) bi.value=BANKROLL;
+  // Populate keys panel inputs
+  var oi=document.getElementById('keys-panel-odds-input');
+  var ci=document.getElementById('keys-panel-claude-input');
+  if(oi && API_KEY) oi.value=API_KEY;
+  if(ci && CLAUDE_KEY) ci.value=CLAUDE_KEY;
   if(API_KEY){ fetchOdds(); checkPendingBets(); generatePicks(); startCacheTimer(); }
   else renderOddsError('add_key');
   switchTab('games');
@@ -764,6 +878,12 @@ function switchToolsSub(panel){
   ['calc-panel','stats-panel','keys-panel'].forEach(function(p){
     document.getElementById(p).style.display = p===panel?'block':'none';
   });
+  if(panel==='keys-panel'){
+    var oi=document.getElementById('keys-panel-odds-input');
+    var ci=document.getElementById('keys-panel-claude-input');
+    if(oi && API_KEY){ oi.value=API_KEY; }
+    if(ci && CLAUDE_KEY){ ci.value=CLAUDE_KEY; }
+  }
 }
 
 // ============================================================
