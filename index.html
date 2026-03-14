@@ -1614,6 +1614,44 @@ function findTeamStats(fullName){
     if(fw) return getTeamStats(fw);
   }
 
+  // 5. Mascot/nickname stripping -- odds API often sends "Kansas Jayhawks", "Houston Cougars", etc.
+  // Try matching just the school portion (all words except the last one)
+  var words=lc.split(' ');
+  if(words.length>=2){
+    // Try dropping the last word (mascot) first
+    var withoutMascot=words.slice(0,-1).join(' ');
+    var mNoMascot=names.find(function(n){return n.toLowerCase()===withoutMascot;});
+    if(mNoMascot) return getTeamStats(mNoMascot);
+
+    // Also try alias on the mascot-stripped version
+    var aliasNoMascot=aliases[withoutMascot];
+    if(aliasNoMascot) return getTeamStats(aliasNoMascot);
+
+    // Try dropping last TWO words (e.g. "Texas A&M Aggies" -> "Texas A&M", "North Carolina Tar Heels" -> "North Carolina")
+    if(words.length>=3){
+      var withoutTwo=words.slice(0,-2).join(' ');
+      var mNoTwo=names.find(function(n){return n.toLowerCase()===withoutTwo;});
+      if(mNoTwo) return getTeamStats(mNoTwo);
+      var aliasNoTwo=aliases[withoutTwo];
+      if(aliasNoTwo) return getTeamStats(aliasNoTwo);
+    }
+
+    // Try dropping last THREE words
+    if(words.length>=4){
+      var withoutThree=words.slice(0,-3).join(' ');
+      var mNoThree=names.find(function(n){return n.toLowerCase()===withoutThree;});
+      if(mNoThree) return getTeamStats(mNoThree);
+    }
+  }
+
+  // 6. Substring match -- if API name STARTS WITH a DB entry (e.g. "Kansas Jayhawks" starts with "Kansas")
+  // Only do this when the DB name is long enough to be unambiguous (5+ chars)
+  var substringMatch=names.find(function(n){
+    var nl=n.toLowerCase();
+    return nl.length>=5 && lc.startsWith(nl+' ');
+  });
+  if(substringMatch) return getTeamStats(substringMatch);
+
   return null;
 }
 
@@ -2841,7 +2879,7 @@ async function _runGameAnalysisInner(){
   var flags = gameFlags[g.id] || {};
   // Build stats context
   function statLine(name, s){
-    if(!s) return name+': no stats in database';
+    if(!s) return name+': no stats in database (API name: "'+name+'")';
     return name+': PPG='+s.ppg+', OrtG='+s.ortg+', DrtG='+s.drtg+', Pace='+s.pace+', EFG='+s.efg+'%, TOV='+s.tov+'%, ORB='+s.orb+'%, Exp='+s.exp+', 3PR='+s.tpr+'%';
   }
   var net1=s1?s1.ortg-s1.drtg:null, net2=s2?s2.ortg-s2.drtg:null;
