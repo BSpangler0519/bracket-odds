@@ -3837,16 +3837,13 @@ async function generatePicks(){
         else if(spreadEdge<-3){spreadPick=g.away+' +'+(Math.abs(g.spread));spreadReason='Projected margin '+expectedMargin.toFixed(1)+' pts &mdash; '+g.away+' covers '+Math.abs(g.spread)+' pt spread';}
         if(spreadPick){
           var ss=edgeToStars(Math.abs(spreadEdge),3,6,10);
-          allPicks.push({type:'spread',typeLabel:'SPREAD',game:g,pick:spreadPick,odds:g.spreadOdds,stars:ss,edge:spreadEdge.toFixed(1),reason:spreadReason,sortScore:100+Math.abs(spreadEdge)*ss});
+          allPicks.push({type:'spread',typeLabel:'SPREAD',game:g,pick:spreadPick,odds:g.spreadOdds,stars:ss,edge:spreadEdge.toFixed(1),reason:spreadReason,projMargin:expectedMargin.toFixed(1),sortScore:100+Math.abs(spreadEdge)*ss});
         }
       }
       if(g.total!=null){
-        // Use ortg/drtg per-100-possessions scaled by avg pace -- same method sportsbooks use
-        // Avoids double-counting pace that plagued the old ppg * paceAdj formula
-        // Use conference possessions if available (more recent/accurate than overall)
-        var p1=s1.conoe?s1.pace*(0.7)+(s1.conoe||s1.pace)*(0.3):s1.pace;
-        var p2=s2.conoe?s2.pace*(0.7)+(s2.conoe||s2.pace)*(0.3):s2.pace;
-        var avgPoss = (p1 + p2) / 2;
+        // Use ortg/drtg per-100-possessions scaled by avg pace
+        // Identical formula to the game analysis modal for consistency
+        var avgPoss = (s1.pace + s2.pace) / 2;
         var expHomeFinal = (s1.ortg + s2.drtg) / 2 / 100 * avgPoss;
         var expAwayFinal = (s2.ortg + s1.drtg) / 2 / 100 * avgPoss;
         var projTotal = expHomeFinal + expAwayFinal;
@@ -3857,7 +3854,7 @@ async function generatePicks(){
         else if(ouEdge<-5){ouPick='Under '+g.total;ouReason='Projected total '+projTotal.toFixed(1)+' pts vs line '+g.total+' &mdash; '+Math.abs(ouEdge).toFixed(1)+' pt edge (defensive matchup)';}
         if(ouPick){
           var os=edgeToStars(Math.abs(ouEdge),5,8,12);
-          allPicks.push({type:'ou',typeLabel:'OVER/UNDER',game:g,pick:ouPick,odds:-110,stars:os,edge:ouEdge.toFixed(1),reason:ouReason,sortScore:100+Math.abs(ouEdge)*os});
+          allPicks.push({type:'ou',typeLabel:'OVER/UNDER',game:g,pick:ouPick,odds:-110,stars:os,edge:ouEdge.toFixed(1),reason:ouReason,projTotal:projTotal.toFixed(1),sortScore:100+Math.abs(ouEdge)*os});
         }
       }
       var netGap=Math.abs(net1-net2);
@@ -3950,7 +3947,7 @@ function renderPicks(){
       +'</div>'
       +'<div style="background:#0d1520;border-radius:8px;padding:8px 10px;margin-bottom:10px"><div style="font-size:13px;font-weight:700;color:#e0e6f0">'+(p.game&&p.game.away?p.game.away:'?')+' <span style="color:#445566;font-weight:400">@</span> '+(p.game&&p.game.home?p.game.home:'?')+'</div><div style="font-size:10px;color:#556677;margin-top:2px">'+(p.game&&p.game.date?p.game.date:'')+' '+(p.game&&p.game.time?p.game.time:'')+'</div></div>'
       +'<div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px">'+p.pick+'<span style="font-size:13px;font-weight:700;color:'+(p.odds>0?'#38bdf8':'#c084fc')+';margin-left:8px">'+fmt(p.odds)+'</span>'+movHtml+'</div>'
-      +'<div style="font-size:11px;color:#94a3b8;margin-bottom:8px;line-height:1.5">'+p.reason+'</div>'
+      +'<div style="font-size:11px;color:#94a3b8;margin-bottom:6px;line-height:1.5">'+p.reason+'</div>'      +(p.projTotal?'<div style="display:inline-block;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:6px;padding:3px 8px;font-size:10px;color:#34d399;margin-bottom:6px">&#128200; Model projects: <strong>'+p.projTotal+' pts</strong> vs line '+p.game.total+'</div>':'')      +(p.projMargin?'<div style="display:inline-block;background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.3);border-radius:6px;padding:3px 8px;font-size:10px;color:#c084fc;margin-bottom:6px">&#128200; Model projects: <strong>'+p.game.home+' by '+Math.abs(p.projMargin)+'</strong> (line: '+fmt(p.game.spread)+')</div>':'')
       +(isValueBet?'<div style="display:flex;align-items:center;gap:8px"><div style="font-size:9px;color:#7a8fa6;width:60px">EDGE</div><div style="flex:1;height:4px;background:#1a2a3a;border-radius:2px"><div style="height:4px;border-radius:2px;background:'+col+';width:'+Math.min(Math.abs(edgeNum)*8,100)+'%"></div></div><div style="font-size:11px;font-weight:700;color:'+col+'">'+edgeStr+'</div></div>':'')
       +kellyHtml
       +(!p.isParlay?'<div style="display:flex;gap:6px;margin-top:8px">'
@@ -4096,11 +4093,26 @@ async function generateClaudeSummary(){
   var topPicks=allPicks.filter(function(p){return !p.isParlay;}).slice(0,6);
   var picksContext=topPicks.map(function(p,i){
     var gameStr=p.game?p.game.away+' @ '+p.game.home:'Unknown';
-    return (i+1)+'. '+p.typeLabel+' | '+gameStr+' | Pick: '+p.pick+' ('+fmt(p.odds)+') - '+p.reason.replace(/&mdash;/g,'--').replace(/&middot;/g,'*')+' ['+p.stars+' stars, edge: '+p.edge+'%]';
-  }).join('\n');
+    // Build clean reason without HTML entities
+    var reason=p.reason.replace(/&mdash;/g,'--').replace(/&middot;/g,'*').replace(/&nbsp;/g,' ');
+    // Extract projected total from reason string if O/U pick
+    var projLine='';
+    if(p.type==='ou'){
+      var projMatch=reason.match(/Projected total ([\d.]+) pts vs line ([\d.]+)/);
+      if(projMatch) projLine=' | Model projects: '+projMatch[1]+' pts (line: '+projMatch[2]+')';
+    }
+    return (i+1)+'. ['+p.typeLabel+'] '+gameStr
+      +'\n   Pick: '+p.pick+' ('+fmt(p.odds)+') | Stars: '+p.stars+' | Edge: '+p.edge+'%'
+      +projLine
+      +'\n   Reason: '+reason;
+  }).join('\n\n');
   var parlayPick=allPicks.find(function(p){return p.isParlay;});
-  var parlayContext=parlayPick?'\nSuggested parlay: '+parlayPick.reason.replace(/&mdash;/g,'--'):'';
-  var prompt='You are a sharp NCAA basketball betting analyst. Based on the following statistical analysis of today\'s games, write a concise betting summary for a recreational bettor. Be direct, confident, and highlight the 2-3 best opportunities. Use plain language. Keep it under 200 words. Do not add disclaimers about gambling.\n\nToday\'s picks:\n'+picksContext+parlayContext+'\n\nWrite a narrative summary covering: the single best bet of the day, any strong value spots, and a parlay recommendation if applicable.';
+  var parlayContext=parlayPick?'\n\nSuggested parlay: '+parlayPick.reason.replace(/&mdash;/g,'--'):'';
+  var prompt='You are a sharp NCAA basketball betting analyst. The following picks were generated by a statistical model using real Barttorvik efficiency data. '
+    +'IMPORTANT: Use ONLY the projected totals and statistics provided below. Do NOT substitute your own projections or historical knowledge. '
+    +'Write a concise betting summary (under 250 words) for a recreational bettor. Be direct and highlight the 2-3 best opportunities. No disclaimers.\n\n'
+    +'STATISTICAL MODEL PICKS:\n'+picksContext+parlayContext+'\n\n'
+    +'Summarize: best bet of the day, any value spots, parlay if applicable. Reference the specific model projections when discussing O/U picks.';
   try{
     var response=await claudeFetchWithRetry('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':CLAUDE_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     clearInterval(dotTimer);
@@ -4572,7 +4584,7 @@ async function _runGameAnalysisInner(){
     +(projMargin?'\nProjected margin: '+g.home+' by '+projMargin+' pts (stats model)':'')
     +(projTotal?'\nProjected total: '+projTotal+' pts (vs line '+g.total+')':'')
     +flagContext
-    +'\n\nProvide a focused 5-6 sentence analysis covering: (1) which team has the statistical edge and why, (2) whether the spread offers value, (3) whether the total looks over or under, (4) any concerns from the flags above, (5) your recommended bet with confidence level. Be direct. No disclaimers.';
+    +'\n\nIMPORTANT: Base your analysis ONLY on the stats and projections provided above. Do NOT use your own historical knowledge to override the projected total or margin shown. If the model projects a total, treat it as authoritative.\n\nProvide a focused 5-6 sentence analysis: (1) which team has the statistical edge and why, (2) whether the spread offers value based on the projected margin, (3) whether the total is over or under based on the projected total shown, (4) any flag concerns, (5) recommended bet with confidence. Be direct. No disclaimers.';
   document.getElementById('game-analysis-loading').style.display='block';
   document.getElementById('game-analysis-content').innerHTML='';
   var dotFrames=['&#9679;','&#9679; &#9679;','&#9679; &#9679; &#9679;'],dotIdx=0;
