@@ -3197,8 +3197,21 @@ function runMatchup(){
   if(!matchupTeam1||!matchupTeam2){alert('Please enter both team names.');return;}
   var s1=getTeamStats(matchupTeam1),s2=getTeamStats(matchupTeam2);
   if(!s1||!s2){alert('Stats not found for one or both teams.');return;}
-  var odds1=parseInt(document.getElementById('matchup-odds1').value)||null;
-  var odds2=parseInt(document.getElementById('matchup-odds2').value)||null;
+  // Try to find live game for odds (do this early so VALUE ANALYSIS can use them)
+  var liveGameEarly = null;
+  if(typeof allGamesData !== 'undefined' && allGamesData.length){
+    var t1lcE=matchupTeam1.toLowerCase(), t2lcE=matchupTeam2.toLowerCase();
+    liveGameEarly = allGamesData.find(function(g){
+      var hl=g.home.toLowerCase(),al=g.away.toLowerCase();
+      return (fuzzyTeamMatch(t1lcE,hl)||fuzzyTeamMatch(t1lcE,al))
+          && (fuzzyTeamMatch(t2lcE,hl)||fuzzyTeamMatch(t2lcE,al));
+    })||null;
+  }
+  var t1IsHomeEarly = liveGameEarly ? fuzzyTeamMatch(matchupTeam1.toLowerCase(), liveGameEarly.home.toLowerCase()) : true;
+  var odds1 = liveGameEarly ? (t1IsHomeEarly ? liveGameEarly.homeML : liveGameEarly.awayML)
+    : (parseInt(document.getElementById('matchup-odds1').value)||null);
+  var odds2 = liveGameEarly ? (t1IsHomeEarly ? liveGameEarly.awayML : liveGameEarly.homeML)
+    : (parseInt(document.getElementById('matchup-odds2').value)||null);
   var net1=s1.ortg-s1.drtg,net2=s2.ortg-s2.drtg;
   var netDiff=net1-net2;
 
@@ -3326,7 +3339,7 @@ function runMatchup(){
     +'<div style="font-size:9px;color:#f59e0b;letter-spacing:2px;margin-bottom:8px">STATISTICAL EDGE</div>'
     +'<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:13px;color:#fff">'+matchupTeam1+'</span><span style="font-size:13px;font-weight:700;color:'+(t1Edge>=t2Edge?'#38bdf8':'#a0b4c8')+'">'+t1Edge+'/'+metrics.filter(function(m){return m.t1!=null&&m.t2!=null;}).length+' metrics</span></div>'
     +'<div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="font-size:13px;color:#fff">'+matchupTeam2+'</span><span style="font-size:13px;font-weight:700;color:'+(t2Edge>t1Edge?'#38bdf8':'#a0b4c8')+'">'+t2Edge+'/'+metrics.filter(function(m){return m.t1!=null&&m.t2!=null;}).length+' metrics</span></div>'
-    +'<div style="font-size:12px;color:#a0b4c8;margin-bottom:4px">Projected win prob (Net Rating):</div>'
+    +'<div style="font-size:12px;color:#a0b4c8;margin-bottom:4px">Projected win prob ('+modelLabel+'):</div>'
     +'<div style="font-size:15px;font-weight:700;color:#38bdf8">'+statFav+' '+statFavProb+'%</div>'
     +'</div>'
     +valueHTML
