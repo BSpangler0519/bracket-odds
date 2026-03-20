@@ -524,8 +524,8 @@ button{cursor:pointer}
   <!-- ===== TOOLS TAB ===== -->
   <div id="tab-tools" class="tab-content" style="display:none">
     <div class="sub-tabs">
-      <button class="sub-tab active" data-st="calc-panel" onclick="switchToolsSub('calc-panel')">CALC</button>
-      <button class="sub-tab" data-st="stats-panel" onclick="switchToolsSub('stats-panel')">STATS</button>
+      <button class="sub-tab" data-st="calc-panel" onclick="switchToolsSub('calc-panel')">CALC</button>
+      <button class="sub-tab active" data-st="stats-panel" onclick="switchToolsSub('stats-panel')">STATS</button>
       <button class="sub-tab" data-st="bart-panel" onclick="switchToolsSub('bart-panel')">BARTTORVIK</button>
       <button class="sub-tab" data-st="keys-panel" onclick="switchToolsSub('keys-panel')">KEYS</button>
     </div>
@@ -1311,8 +1311,8 @@ button{cursor:pointer}
   <!-- ===== TOOLS TAB ===== -->
   <div id="tab-tools" class="tab-content" style="display:none">
     <div class="sub-tabs">
-      <button class="sub-tab active" data-st="calc-panel" onclick="switchToolsSub('calc-panel')">CALC</button>
-      <button class="sub-tab" data-st="stats-panel" onclick="switchToolsSub('stats-panel')">STATS</button>
+      <button class="sub-tab" data-st="calc-panel" onclick="switchToolsSub('calc-panel')">CALC</button>
+      <button class="sub-tab active" data-st="stats-panel" onclick="switchToolsSub('stats-panel')">STATS</button>
       <button class="sub-tab" data-st="bart-panel" onclick="switchToolsSub('bart-panel')">BARTTORVIK</button>
       <button class="sub-tab" data-st="keys-panel" onclick="switchToolsSub('keys-panel')">KEYS</button>
     </div>
@@ -1873,6 +1873,8 @@ function initApp(){
   if(API_KEY){ fetchOdds(); checkPendingBets(); generatePicks(); startCacheTimer(); }
   else renderOddsError('add_key');
   switchTab('games');
+  // Default Tools to Stats/Matchup
+  switchToolsSub('stats-panel');
 }
 
 // ============================================================
@@ -1905,6 +1907,9 @@ function switchToolsSub(panel){
   ['calc-panel','stats-panel','bart-panel','keys-panel'].forEach(function(p){
     document.getElementById(p).style.display = p===panel?'block':'none';
   });
+  if(panel==='stats-panel' && typeof statsMode !== 'undefined' && statsMode!=='matchup'){
+    setStatsMode('matchup');
+  }
   if(panel==='keys-panel'){
     var oi=document.getElementById('keys-panel-odds-input');
     var ci=document.getElementById('keys-panel-claude-input');
